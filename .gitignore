@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Foundry
+out/
+lib/
+broadcast/
+*.log

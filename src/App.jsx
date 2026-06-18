@@ -8,10 +8,8 @@ import {
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ExpenseApp from "./ExpenseApp";
 import PrivateRoute from "./guard/AuthGuard";
-import ExpenseApp from "./ExpenseApp"; // Your main app component
-
-// Wrap your main app with logout functionality
 const AppContent = () => {
   const { user, logout } = useAuth();
 
@@ -51,7 +49,7 @@ function App() {
               </PrivateRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </Router>

@@ -10,7 +10,12 @@ export const AuthProvider = ({ children }) => {
     // Check if user is logged in (localStorage)
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        localStorage.removeItem('user');
+      }
     }
     setLoading(false);
   }, []);
@@ -30,8 +35,9 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('users', JSON.stringify(users));
 
     // Auto login after registration
-    setUser({ email, name });
-    localStorage.setItem('user', JSON.stringify({ email, name }));
+    const userData = { email, name };
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
     
     return { success: true, message: 'Registration successful!' };
   };
@@ -44,8 +50,9 @@ export const AuthProvider = ({ children }) => {
       return { success: false, message: 'Invalid email or password!' };
     }
 
-    setUser({ email: user.email, name: user.name });
-    localStorage.setItem('user', JSON.stringify({ email: user.email, name: user.name }));
+    const userData = { email: user.email, name: user.name };
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
     
     return { success: true, message: 'Login successful!' };
   };
@@ -55,8 +62,16 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
   };
 
+  const value = {
+    user,
+    loading,
+    register,
+    login,
+    logout
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,7 +4,6 @@ import { ethers } from "ethers";
 import { contractABI } from "./abi";
 
 const CONTRACT_ADDRESS = "0xfa4e88f0a0d7cdfc6472ed91da5672def7fc9b9f";
-// const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
 
 function Expapp() {
   const [provider, setProvider] = useState(null);
@@ -561,32 +560,6 @@ function Expapp() {
               </span>
             )}
           </div>
-
-          {/* Debug Info */}
-          {debugInfo && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-              <strong className="text-blue-700">🔍 Debug Info:</strong>
-              <div className="text-blue-600 mt-1 break-all font-mono">
-                {debugInfo}
-              </div>
-            </div>
-          )}
-
-          {/* Error Display */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-              <i className="fas fa-exclamation-triangle mr-2"></i>
-              {error}
-            </div>
-          )}
-
-          {/* Network Error */}
-          {networkError && (
-            <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded-lg">
-              <i className="fas fa-exclamation-triangle mr-2"></i>
-              {networkError}
-            </div>
-          )}
 
           {/* Wallet Connection */}
           <div className="flex gap-3 flex-wrap">

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { contractABI } from "./abi";
+import { nftABI } from "./nftABI";
 
 // Main Storage Contract
 const CONTRACT_ADDRESS = "0x59698cC3f177CCa3c5b95A7dac71A5B3e51B6Bec";
@@ -49,6 +50,14 @@ function App() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [error, setError] = useState("");
   const [debugInfo, setDebugInfo] = useState("");
+
+  // NFT states
+  const [userNFTs, setUserNFTs] = useState([]);
+  const [nftContract, setNftContract] = useState(null);
+  const [nftImage, setNftImage] = useState(null);
+  const [nftImageFile, setNftImageFile] = useState(null);
+  const [selectedExpenseForNFT, setSelectedExpenseForNFT] = useState("");
+  const [mintingNFT, setMintingNFT] = useState(false);
 
   // Switch to Sepolia network
   const switchToSepolia = async () => {
@@ -150,6 +159,15 @@ function App() {
       setWalletAddress(address);
       setIsConnected(true);
 
+      // Initialize NFT contract
+      const nftContractInstance = new ethers.Contract(
+        NFT_CONTRACT_ADDRESS,
+        nftABI,
+        signerInstance,
+      );
+      setNftContract(nftContractInstance);
+      await loadUserNFTs(nftContractInstance);
+
       const balance = await providerInstance.getBalance(CONTRACT_ADDRESS);
       const ethBalance = parseFloat(ethers.formatEther(balance)).toFixed(4);
       setDebugInfo((prev) => prev + ` | Balance: ${ethBalance} ETH`);
@@ -178,11 +196,147 @@ function App() {
     setTotalAmount(0);
     setPendingCount(0);
     setBadDebtors([]);
+    setUserNFTs([]);
     setNetworkError("");
     setDataLoaded(false);
     setError("");
     setDebugInfo("");
+    setNftImage(null);
+    setNftImageFile(null);
+    setSelectedExpenseForNFT("");
   }, []);
+
+  // Load user NFTs
+  const loadUserNFTs = useCallback(
+    async (nftContractInstance) => {
+      if (!nftContractInstance || !walletAddress) return;
+
+      try {
+        const tokenIds = await nftContractInstance.getUserNFTs(walletAddress);
+        const nfts = [];
+
+        for (let i = 0; i < tokenIds.length; i++) {
+          try {
+            const tokenId = tokenIds[i];
+            const tokenURI = await nftContractInstance.tokenURI(tokenId);
+            const response = await fetch(tokenURI);
+            const metadata = await response.json();
+
+            nfts.push({
+              tokenId: tokenId.toString(),
+              tokenURI,
+              metadata,
+              image:
+                metadata.image ||
+                "https://via.placeholder.com/400x400/6C63FF/FFFFFF?text=Expense+NFT",
+            });
+          } catch (err) {
+            console.error("Error loading NFT:", err);
+          }
+        }
+
+        setUserNFTs(nfts);
+      } catch (error) {
+        console.error("Failed to load NFTs:", error);
+      }
+    },
+    [walletAddress],
+  );
+
+  // Import NFT to MetaMask
+  const importNFTToMetaMask = useCallback(async () => {
+    if (!window.ethereum) {
+      alert("Please install MetaMask");
+      return;
+    }
+
+    try {
+      if (userNFTs.length === 0) {
+        alert("You don't have any NFTs yet. Mint an expense NFT first!");
+        return;
+      }
+
+      const tokenId = userNFTs[0].tokenId;
+
+      const wasAdded = await window.ethereum.request({
+        method: "wallet_watchAsset",
+        params: {
+          type: "ERC721",
+          options: {
+            address: NFT_CONTRACT_ADDRESS,
+            tokenId: tokenId,
+          },
+        },
+      });
+
+      if (wasAdded) {
+        alert("✅ NFT added to MetaMask!");
+      } else {
+        alert("❌ User rejected the request");
+      }
+    } catch (error) {
+      console.error("Failed to import NFT:", error);
+      alert("Failed to import NFT: " + error.message);
+    }
+  }, [userNFTs]);
+
+  // Mint NFT for an expense
+  const mintExpenseNFT = useCallback(async () => {
+    if (!nftContract || !isConnected) {
+      alert("Please connect wallet first");
+      return;
+    }
+
+    if (!selectedExpenseForNFT) {
+      alert("Please select an expense");
+      return;
+    }
+
+    try {
+      setMintingNFT(true);
+
+      const expense = expenses.find(
+        (e) => e.id === parseInt(selectedExpenseForNFT),
+      );
+      if (!expense) {
+        alert("Expense not found");
+        return;
+      }
+
+      // Create metadata (using placeholder for now)
+      const tokenURI = "https://ipfs.io/ipfs/QmPlaceholder/";
+
+      // Mint NFT
+      const tx = await nftContract.mintExpenseNFT(
+        walletAddress,
+        tokenURI,
+        expense.id,
+        expense.expname,
+      );
+
+      await tx.wait();
+
+      alert("✅ NFT Minted Successfully!");
+
+      setSelectedExpenseForNFT("");
+      setNftImage(null);
+      setNftImageFile(null);
+
+      await loadUserNFTs(nftContract);
+    } catch (error) {
+      console.error("Failed to mint NFT:", error);
+      alert("Failed to mint NFT: " + (error.reason || error.message));
+    } finally {
+      setMintingNFT(false);
+    }
+  }, [
+    nftContract,
+    isConnected,
+    walletAddress,
+    selectedExpenseForNFT,
+    expenses,
+    loadUserNFTs,
+  ]);
 
   // Get contract ETH balance
   const getContractBalance = useCallback(async (providerInstance) => {
@@ -237,27 +391,18 @@ function App() {
           else if (statusValue === 2) statusText = "❌ Rejected";
           else if (statusValue === 3) statusText = "⚠️ Bad Debt";
 
-          // For Bad Debt, track the person who owes money (not the payer)
           if (statusValue === 3) {
-            // Check which person is the bad debtor based on the UI selection
-            // Since we store bad debt info in the contract, we need to determine who owes
-            // The payer is exp.paidby, the debtors are exp.person1 and exp.person2
-            // We'll track both as potential bad debtors with their share amount
             const shareAmount = amtEth / 3;
-
-            // Add person1 as bad debtor
             debtors.push({
               name: exp.person1 || "Unknown",
-              address: exp.person1Address || "Unknown", // We need to store this in contract
+              address: exp.person1Address || "Unknown",
               amount: shareAmount,
               expname: exp.expname || "Unknown",
               role: "person1",
             });
-
-            // Add person2 as bad debtor
             debtors.push({
               name: exp.person2 || "Unknown",
-              address: exp.person2Address || "Unknown", // We need to store this in contract
+              address: exp.person2Address || "Unknown",
               amount: shareAmount,
               expname: exp.expname || "Unknown",
               role: "person2",
@@ -372,6 +517,10 @@ function App() {
       await loadExpenses(contract);
       await getContractBalance(provider);
 
+      if (nftContract) {
+        await loadUserNFTs(nftContract);
+      }
+
       alert("Expense Added Successfully!");
     } catch (error) {
       console.error("Failed to add expense:", error);
@@ -393,6 +542,8 @@ function App() {
     provider,
     loadExpenses,
     getContractBalance,
+    nftContract,
+    loadUserNFTs,
   ]);
 
   // Handle status dropdown change
@@ -454,6 +605,9 @@ function App() {
         if (contract && isConnected && isCorrectNetwork) {
           loadExpenses(contract);
           getContractBalance(provider);
+          if (nftContract) {
+            loadUserNFTs(nftContract);
+          }
         }
       }, 15000);
 
@@ -466,6 +620,8 @@ function App() {
     loadExpenses,
     getContractBalance,
     provider,
+    nftContract,
+    loadUserNFTs,
   ]);
 
   // Manual refresh
@@ -473,6 +629,9 @@ function App() {
     if (contract && isConnected && isCorrectNetwork) {
       loadExpenses(contract);
       getContractBalance(provider);
+      if (nftContract) {
+        loadUserNFTs(nftContract);
+      }
     }
   }, [
     contract,
@@ -481,6 +640,8 @@ function App() {
     loadExpenses,
     getContractBalance,
     provider,
+    nftContract,
+    loadUserNFTs,
   ]);
 
   return (
@@ -504,6 +665,38 @@ function App() {
               </span>
             )}
           </div>
+
+          {/* NFT Import Button */}
+          {isConnected && isCorrectNetwork && (
+            <div className="mb-4 p-4 bg-purple-50 rounded-xl border border-purple-200">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h4 className="font-semibold text-purple-700 flex items-center gap-2">
+                    <i className="fas fa-cube"></i> Your NFTs
+                    {userNFTs.length > 0 && (
+                      <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">
+                        {userNFTs.length}
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-purple-600 mt-1">
+                    {userNFTs.length > 0
+                      ? `You have ${userNFTs.length} expense receipt NFT${userNFTs.length > 1 ? "s" : ""}`
+                      : "No NFTs yet. Mint an expense NFT!"}
+                  </p>
+                </div>
+                {userNFTs.length > 0 && (
+                  <button
+                    onClick={importNFTToMetaMask}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
+                  >
+                    <i className="fas fa-download"></i>
+                    Import to MetaMask
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Debug info */}
           {debugInfo && (
@@ -852,7 +1045,7 @@ function App() {
               )}
             </div>
 
-            {/* Bad Debtors List - FIXED */}
+            {/* Bad Debtors List */}
             <div className="bg-red-50 rounded-2xl shadow-xl p-6 border-2 border-red-200">
               <h3 className="text-lg font-bold text-red-700 flex items-center gap-2">
                 <i className="fas fa-skull"></i> Bad Debtors
@@ -919,7 +1112,117 @@ function App() {
               </div>
             </div>
 
-            {/* Expenses List - IMPROVED */}
+            {/* NFT Minting Section */}
+            <div className="bg-purple-50 rounded-2xl shadow-xl p-6 border-2 border-purple-200">
+              <h3 className="text-lg font-bold text-purple-700 flex items-center gap-2">
+                <i className="fas fa-crown"></i> Mint NFT Receipt
+                {userNFTs.length > 0 && (
+                  <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded-full">
+                    {userNFTs.length}
+                  </span>
+                )}
+              </h3>
+
+              <div className="mt-3 space-y-3">
+                {/* Image Upload */}
+                <div
+                  className="border-2 border-dashed border-purple-300 rounded-lg p-4 text-center cursor-pointer hover:border-purple-500 transition-colors"
+                  onClick={() =>
+                    document.getElementById("nftImageInput").click()
+                  }
+                >
+                  <input
+                    type="file"
+                    id="nftImageInput"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setNftImageFile(file);
+                        const reader = new FileReader();
+                        reader.onload = (e) => setNftImage(e.target.result);
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    disabled={!isConnected || !isCorrectNetwork}
+                  />
+                  {nftImage ? (
+                    <img
+                      src={nftImage}
+                      alt="NFT"
+                      className="w-32 h-32 mx-auto rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="py-4">
+                      <i className="fas fa-cloud-upload-alt text-4xl text-purple-400"></i>
+                      <p className="text-sm text-gray-500 mt-2">
+                        Upload receipt image (optional)
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Expense Selection */}
+                <select
+                  className="w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={selectedExpenseForNFT}
+                  onChange={(e) => setSelectedExpenseForNFT(e.target.value)}
+                  disabled={!isConnected || !isCorrectNetwork}
+                >
+                  <option value="">Select a paid expense for NFT</option>
+                  {expenses
+                    .filter((exp) => exp.status === 1)
+                    .map((exp) => (
+                      <option key={exp.id} value={exp.id}>
+                        {exp.expname} - {exp.amt.toFixed(4)} ETH
+                      </option>
+                    ))}
+                </select>
+
+                {/* Mint Button */}
+                <button
+                  onClick={mintExpenseNFT}
+                  disabled={
+                    mintingNFT ||
+                    !selectedExpenseForNFT ||
+                    !isConnected ||
+                    !isCorrectNetwork
+                  }
+                  className={`w-full py-3 rounded-xl flex items-center justify-center gap-2 ${
+                    mintingNFT ||
+                    !selectedExpenseForNFT ||
+                    !isConnected ||
+                    !isCorrectNetwork
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  } text-white font-semibold`}
+                >
+                  {mintingNFT ? (
+                    <>
+                      <i className="fas fa-spinner fa-spin"></i>
+                      Minting...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-magic"></i>
+                      Mint NFT
+                    </>
+                  )}
+                </button>
+
+                {/* NFT Count Display */}
+                {userNFTs.length > 0 && (
+                  <div className="text-center text-sm text-purple-600 mt-2">
+                    <i className="fas fa-check-circle mr-1"></i>
+                    You have {userNFTs.length} NFT
+                    {userNFTs.length > 1 ? "s" : ""} in your collection
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Expenses List */}
             <div className="bg-white rounded-2xl shadow-xl p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-slate-700">
@@ -1031,6 +1334,8 @@ function App() {
                 <li>3️⃣ Add expense to the blockchain</li>
                 <li>4️⃣ Each person owes 33.33% of total amount</li>
                 <li>5️⃣ Select "Bad Debt" to mark someone who didn't pay</li>
+                <li>6️⃣ Mint NFT receipt for paid expenses</li>
+                <li>7️⃣ Click "Import to MetaMask" to view your NFTs</li>
                 <li>⚠️ Make sure you're on Sepolia network!</li>
               </ul>
             </div>

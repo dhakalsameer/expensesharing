@@ -17,9 +17,10 @@ contract ExpenseNFT is ERC721, ERC721URIStorage, ERC721Pausable, Ownable, ERC721
     
     event ExpenseNFTMinted(address indexed to, uint256 tokenId, uint256 expenseId, string expname);
 
-    constructor(address initialOwner)
+    // REMOVED constructor argument - uses msg.sender as owner
+    constructor() 
         ERC721("Expense Receipt NFT", "ERNFT")
-        Ownable(initialOwner)
+        Ownable(msg.sender)
     {}
 
     function mintExpenseNFT(

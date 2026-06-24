@@ -31,6 +31,15 @@ function App() {
   const [notifications, setNotifications] = useState([]);
   const [notificationLoading, setNotificationLoading] = useState(false);
 
+  // Payment Request states
+  const [requestRecipient, setRequestRecipient] = useState("");
+  const [requestAmount, setRequestAmount] = useState("");
+  const [requestReason, setRequestReason] = useState("");
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [allRequests, setAllRequests] = useState([]);
+  const [showRequests, setShowRequests] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+
   // Form inputs
   const [expenseName, setExpenseName] = useState("");
   const [paidBy, setPaidBy] = useState("");
@@ -184,6 +193,8 @@ function App() {
       setDebugInfo((prev) => prev + ` | Balance: ${ethBalance} ETH`);
 
       await loadExpenses(contractInstance);
+      await loadPaymentRequests(contractInstance);
+
       await getContractBalance(providerInstance);
       setIsLoading(false);
     } catch (error) {
@@ -191,7 +202,7 @@ function App() {
       setError("Failed to connect wallet: " + error.message);
       setIsLoading(false);
     }
-  }, [initEthers, initPushProtocol]);
+  }, [initEthers, initPushProtocol, loadPaymentRequests]);
   // Initialize Push Protocol
   const initPushProtocol = useCallback(async (signerInstance) => {
     try {
@@ -537,7 +548,150 @@ function App() {
       setRefreshing(false);
     }
   }, []);
+  // Load payment requests
+  const loadPaymentRequests = useCallback(
+    async (contractInstance) => {
+      if (!contractInstance) return;
 
+      try {
+        console.log("🔄 Loading payment requests...");
+
+        // Get total requests
+        const totalRequests = await contractInstance.getPaymentRequestCount();
+        const requests = [];
+
+        // Get all requests
+        for (let i = 0; i < Number(totalRequests); i++) {
+          try {
+            const req = await contractInstance.getPaymentRequest(i);
+            const amountEth = parseFloat(ethers.formatEther(req.amount));
+            requests.push({
+              id: i,
+              from: req.from,
+              to: req.to,
+              amount: amountEth,
+              reason: req.reason,
+              isPaid: req.isPaid,
+              timestamp: new Date(
+                Number(req.timestamp) * 1000,
+              ).toLocaleString(),
+            });
+          } catch (err) {
+            console.error(`Error loading request ${i}:`, err);
+          }
+        }
+
+        setAllRequests(requests);
+
+        // Get pending requests for current user
+        if (walletAddress) {
+          const pending =
+            await contractInstance.getPendingRequests(walletAddress);
+          const pendingList = [];
+          for (let i = 0; i < pending.length; i++) {
+            const amountEth = parseFloat(ethers.formatEther(pending[i].amount));
+            pendingList.push({
+              from: pending[i].from,
+              amount: amountEth,
+              reason: pending[i].reason,
+              isPaid: pending[i].isPaid,
+              timestamp: new Date(
+                Number(pending[i].timestamp) * 1000,
+              ).toLocaleString(),
+            });
+          }
+          setPendingRequests(pendingList);
+        }
+
+        console.log(`✅ Loaded ${requests.length} payment requests`);
+      } catch (error) {
+        console.error("❌ Failed to load payment requests:", error);
+      }
+    },
+    [walletAddress],
+  );
+  // Request payment from someone
+  const handleRequestPayment = useCallback(async () => {
+    if (!contract || !isConnected) {
+      alert("Please connect wallet");
+      return;
+    }
+
+    if (!requestRecipient || !requestAmount || !requestReason) {
+      alert("Please fill all fields");
+      return;
+    }
+
+    try {
+      setRequestLoading(true);
+      const amt = ethers.parseEther(requestAmount);
+
+      const tx = await contract.requestPayment(
+        requestRecipient,
+        amt,
+        requestReason,
+      );
+
+      await tx.wait();
+
+      // Send notification to the debtor
+      await sendPushNotification(
+        requestRecipient,
+        `💸 Payment Request`,
+        `${formatAddress(walletAddress)} is requesting ${requestAmount} ETH for "${requestReason}"`,
+      );
+
+      await loadPaymentRequests(contract);
+
+      setRequestRecipient("");
+      setRequestAmount("");
+      setRequestReason("");
+
+      alert("✅ Payment request sent!");
+    } catch (error) {
+      console.error("❌ Failed to request payment:", error);
+      alert("Failed to request payment: " + (error.reason || error.message));
+    } finally {
+      setRequestLoading(false);
+    }
+  }, [
+    contract,
+    isConnected,
+    requestRecipient,
+    requestAmount,
+    requestReason,
+    sendPushNotification,
+    loadPaymentRequests,
+    walletAddress,
+  ]);
+
+  // Pay a request
+  const payRequest = useCallback(
+    async (requestId, amount) => {
+      if (!contract || !isConnected) {
+        alert("Please connect wallet");
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const amt = ethers.parseEther(amount.toString());
+
+        const tx = await contract.payRequest(requestId, { value: amt });
+        await tx.wait();
+
+        await loadPaymentRequests(contract);
+
+        alert("✅ Payment sent successfully!");
+      } catch (error) {
+        console.error("❌ Failed to pay:", error);
+        alert("Failed to pay: " + (error.reason || error.message));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [contract, isConnected, loadPaymentRequests],
+  );
   // Calculate split amount
   const updateSplitAmount = useCallback((value) => {
     const amt = parseFloat(value) || 0;
@@ -622,6 +776,41 @@ function App() {
         console.log(`📨 Notification sent to ${paidBy}`);
       }
       // --- END NOTIFICATIONS ---
+
+      // --- AUTO-CREATE PAYMENT REQUESTS ---
+      const shareAmountWei = amt / 3n;
+
+      // Create payment request for Person 1
+      if (person1Address && person1Address !== payerAddress) {
+        try {
+          const requestTx = await contract.requestPayment(
+            person1Address,
+            shareAmountWei,
+            `${expenseName} - Your share`,
+          );
+          await requestTx.wait();
+          console.log(`📨 Payment request sent to ${person1}`);
+        } catch (err) {
+          console.error("Failed to create request for person1:", err);
+        }
+      }
+
+      // Create payment request for Person 2
+      if (person2Address && person2Address !== payerAddress) {
+        try {
+          const requestTx = await contract.requestPayment(
+            person2Address,
+            shareAmountWei,
+            `${expenseName} - Your share`,
+          );
+          await requestTx.wait();
+          console.log(`📨 Payment request sent to ${person2}`);
+        } catch (err) {
+          console.error("Failed to create request for person2:", err);
+        }
+      }
+      // --- END AUTO-PAYMENT REQUESTS ---
+
       // Clear form after successful submission
       setExpenseName("");
       setPaidBy("");
@@ -639,6 +828,7 @@ function App() {
       setBadDebtAddress("");
 
       await loadExpenses(contract);
+      await loadPaymentRequests(contract); // ← ADD THIS
       await getContractBalance(provider);
 
       if (nftContract) {
@@ -665,10 +855,12 @@ function App() {
     location,
     provider,
     loadExpenses,
+    loadPaymentRequests, // ← ADD THIS
     getContractBalance,
     nftContract,
     loadUserNFTs,
     sendPushNotification,
+    person1Address,
     person2Address,
     payerAddress,
   ]);
@@ -1212,6 +1404,140 @@ function App() {
               {!isConnected && (
                 <div className="mt-3 text-center text-sm text-gray-400">
                   Connect wallet to view summary
+                </div>
+              )}
+            </div>
+            {/* Payment Requests Section */}
+            <div className="bg-purple-50 rounded-2xl shadow-xl p-6 border-2 border-purple-200">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-purple-700 flex items-center gap-2">
+                  <i className="fas fa-hand-holding-usd"></i> Payment Requests
+                  {pendingRequests.length > 0 && (
+                    <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded-full">
+                      {pendingRequests.length}
+                    </span>
+                  )}
+                </h3>
+                <button
+                  onClick={() => setShowRequests(!showRequests)}
+                  className="text-purple-600 hover:text-purple-800"
+                >
+                  <i
+                    className={`fas fa-chevron-${showRequests ? "up" : "down"}`}
+                  ></i>
+                </button>
+              </div>
+
+              {showRequests && (
+                <div className="space-y-3">
+                  {/* Request Payment Form */}
+                  <div className="bg-white p-3 rounded-lg border border-purple-200">
+                    <h4 className="font-semibold text-purple-800 text-sm mb-2">
+                      Request Payment
+                    </h4>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Friend's wallet address (0x...)"
+                        className="w-full border rounded p-2 text-sm"
+                        value={requestRecipient}
+                        onChange={(e) => setRequestRecipient(e.target.value)}
+                        disabled={!isConnected || !isCorrectNetwork}
+                      />
+                      <input
+                        type="number"
+                        step="0.001"
+                        placeholder="Amount (ETH)"
+                        className="w-full border rounded p-2 text-sm"
+                        value={requestAmount}
+                        onChange={(e) => setRequestAmount(e.target.value)}
+                        disabled={!isConnected || !isCorrectNetwork}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Reason (e.g., Dinner share)"
+                        className="w-full border rounded p-2 text-sm"
+                        value={requestReason}
+                        onChange={(e) => setRequestReason(e.target.value)}
+                        disabled={!isConnected || !isCorrectNetwork}
+                      />
+                      <button
+                        onClick={handleRequestPayment}
+                        disabled={
+                          requestLoading || !isConnected || !isCorrectNetwork
+                        }
+                        className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded text-sm"
+                      >
+                        {requestLoading ? "Sending..." : "Request Payment"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Pending Requests List */}
+                  {pendingRequests.length > 0 && (
+                    <div className="bg-white p-3 rounded-lg border border-purple-200 max-h-40 overflow-y-auto">
+                      <h4 className="font-semibold text-purple-800 text-sm mb-2">
+                        You Owe
+                      </h4>
+                      {pendingRequests.map((req, index) => (
+                        <div
+                          key={index}
+                          className="border-b border-gray-100 py-2 last:border-0"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-sm font-semibold">
+                                {req.reason}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                From: {formatAddress(req.from)} | Amount:{" "}
+                                {req.amount.toFixed(3)} ETH
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => payRequest(index, req.amount)}
+                              disabled={loading}
+                              className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs"
+                            >
+                              Pay
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* All Requests History */}
+                  {allRequests.length > 0 && (
+                    <div className="bg-white p-3 rounded-lg border border-purple-200 max-h-40 overflow-y-auto">
+                      <h4 className="font-semibold text-purple-800 text-sm mb-2">
+                        Request History
+                      </h4>
+                      {allRequests.map((req, index) => (
+                        <div
+                          key={index}
+                          className={`border-b border-gray-100 py-1 last:border-0 ${req.isPaid ? "bg-green-50" : ""}`}
+                        >
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold">{req.reason}</span>
+                            <span
+                              className={
+                                req.isPaid
+                                  ? "text-green-600"
+                                  : "text-yellow-600"
+                              }
+                            >
+                              {req.isPaid ? "✅ Paid" : "⏳ Pending"}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatAddress(req.from)} → {formatAddress(req.to)}{" "}
+                            | {req.amount.toFixed(3)} ETH
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

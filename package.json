@@ -13,7 +13,7 @@
     "@pushprotocol/restapi": "^1.7.32",
     "@pushprotocol/socket": "^0.5.3",
     "@web3-storage/w3up-client": "^17.3.0",
-    "ethers": "^6.16.0",
+    "ethers": "^5.7.2",
     "globalthis": "^1.0.4",
     "ipfs-http-client": "^60.0.1",
     "pinata-web3": "^0.5.4",

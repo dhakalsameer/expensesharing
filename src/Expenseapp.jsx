@@ -6,17 +6,18 @@ import { nftABI } from "./nftABI";
 import { PinataSDK } from "pinata-web3";
 import "globalthis/auto";
 
-// Push Protocol imports (temporarily commented out for testing)
-// import * as PushAPI from "@pushprotocol/restapi";
-// import { CONSTANTS } from "@pushprotocol/restapi";
+// ========== PUSH PROTOCOL IMPORTS  ==========
+import * as PushAPI from "@pushprotocol/restapi";
+import { CONSTANTS } from "@pushprotocol/restapi";
 
 // Anvil Addresses
 // const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 // const NFT_CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 
-// Sepolia Addresses (commented out)
+// Sepolia Addresses
 // 0x59698cC3f177CCa3c5b95A7dac71A5B3e51B6Bec
-const CONTRACT_ADDRESS = "0xe69F2046Bd2dC81d18992C0a72eB98484df2e52B";
+
+const CONTRACT_ADDRESS = "0xC827aDF24F31170d44a3A7eE120fDbC2BbeCD396";
 const NFT_CONTRACT_ADDRESS = "0xB6dCcFE0c246c3B101EDaEe5e1116c6bAEA9d120";
 const SEPOLIA_CHAIN_ID = "0xaa36a7";
 
@@ -121,7 +122,10 @@ function App() {
   const initEthers = useCallback(async () => {
     if (window.ethereum) {
       try {
-        const providerInstance = new ethers.BrowserProvider(window.ethereum);
+        // Using ethers v5 provider
+        const providerInstance = new ethers.providers.Web3Provider(
+          window.ethereum,
+        );
         setProvider(providerInstance);
         setNetworkError("");
         return providerInstance;
@@ -136,24 +140,22 @@ function App() {
     }
   }, []);
 
-  // Initialize Push Protocol (commented out for testing)
+  // ========== INITIALIZE PUSH PROTOCOL (NOW UNCOMMENTED) ==========
   const initPushProtocol = useCallback(async (signerInstance) => {
     try {
-      // const user = await PushAPI.initialize(signerInstance, {
-      //   env: CONSTANTS.ENV.STAGING,
-      // });
-      // setPushUser(user);
-      // console.log("✅ Push Protocol initialized");
-      // return user;
-      console.log("⚠️ Push Protocol disabled for testing");
-      return null;
+      const user = await PushAPI.initialize(signerInstance, {
+        env: CONSTANTS.ENV.STAGING,
+      });
+      setPushUser(user);
+      console.log("✅ Push Protocol initialized");
+      return user;
     } catch (error) {
       console.error("❌ Failed to initialize Push Protocol:", error);
       return null;
     }
   }, []);
 
-  // Send Push notification (commented out for testing)
+  // ========== SEND PUSH NOTIFICATION (NOW UNCOMMENTED) ==========
   const sendPushNotification = useCallback(
     async (recipient, title, body, cta = "https://yourapp.com/expenses") => {
       if (!pushUser) {
@@ -162,23 +164,19 @@ function App() {
       }
 
       try {
-        // const notification = await pushUser.channel.send([
-        //   {
-        //     recipient: `eip155:11155111:${recipient}`,
-        //     payload: {
-        //       title: title,
-        //       body: body,
-        //       cta: cta,
-        //       img: "https://your-app-logo.png",
-        //     },
-        //   },
-        // ]);
-        // console.log("✅ Push notification sent:", notification);
-        // return notification;
-        console.log(
-          `📨 [Notification would be sent] To: ${recipient}, Title: ${title}`,
-        );
-        return null;
+        const notification = await pushUser.channel.send([
+          {
+            recipient: `eip155:11155111:${recipient}`,
+            payload: {
+              title: title,
+              body: body,
+              cta: cta,
+              img: "https://your-app-logo.png",
+            },
+          },
+        ]);
+        console.log("✅ Push notification sent:", notification);
+        return notification;
       } catch (error) {
         console.error("❌ Failed to send push notification:", error);
         return null;
@@ -253,7 +251,8 @@ function App() {
       for (let i = 0; i < totalCount; i++) {
         try {
           const exp = await contractInstance.getExpense(i);
-          const amtEth = parseFloat(ethers.formatEther(exp.amt));
+          // Using ethers v5 format
+          const amtEth = parseFloat(ethers.utils.formatEther(exp.amt));
           totalAmt += amtEth;
 
           const statusValue = Number(exp.status);
@@ -284,7 +283,7 @@ function App() {
           }
 
           const shareAmountEth = parseFloat(
-            ethers.formatEther(exp.shareamount || 0),
+            ethers.utils.formatEther(exp.shareamount || 0),
           );
 
           expenseList.push({
@@ -321,7 +320,7 @@ function App() {
     }
   }, []);
 
-  // ========== LOAD PAYMENT REQUESTS (MOVED HERE - BEFORE connectWallet) ==========
+  // ========== LOAD PAYMENT REQUESTS ==========
   const loadPaymentRequests = useCallback(
     async (contractInstance) => {
       if (!contractInstance) return;
@@ -335,7 +334,7 @@ function App() {
         for (let i = 0; i < Number(totalRequests); i++) {
           try {
             const req = await contractInstance.getPaymentRequest(i);
-            const amountEth = parseFloat(ethers.formatEther(req.amount));
+            const amountEth = parseFloat(ethers.utils.formatEther(req.amount));
             requests.push({
               id: i,
               from: req.from,
@@ -359,7 +358,9 @@ function App() {
             await contractInstance.getPendingRequests(walletAddress);
           const pendingList = [];
           for (let i = 0; i < pending.length; i++) {
-            const amountEth = parseFloat(ethers.formatEther(pending[i].amount));
+            const amountEth = parseFloat(
+              ethers.utils.formatEther(pending[i].amount),
+            );
             pendingList.push({
               from: pending[i].from,
               amount: amountEth,
@@ -401,7 +402,7 @@ function App() {
       }
 
       await providerInstance.send("eth_requestAccounts", []);
-      const signerInstance = await providerInstance.getSigner();
+      const signerInstance = providerInstance.getSigner();
       const address = await signerInstance.getAddress();
 
       const network = await providerInstance.getNetwork();
@@ -416,7 +417,7 @@ function App() {
       setIsCorrectNetwork(true);
       setDebugInfo(`Network: Sepolia (Chain ID: ${chainId})`);
 
-      const checksumAddress = ethers.getAddress(CONTRACT_ADDRESS);
+      const checksumAddress = ethers.utils.getAddress(CONTRACT_ADDRESS);
       const contractInstance = new ethers.Contract(
         checksumAddress,
         contractABI,
@@ -428,6 +429,7 @@ function App() {
       setWalletAddress(address);
       setIsConnected(true);
 
+      // ===== INIT PUSH PROTOCOL (NOW UNCOMMENTED) =====
       await initPushProtocol(signerInstance);
 
       // Initialize NFT contract
@@ -440,11 +442,13 @@ function App() {
       await loadUserNFTs(nftContractInstance);
 
       const balance = await providerInstance.getBalance(CONTRACT_ADDRESS);
-      const ethBalance = parseFloat(ethers.formatEther(balance)).toFixed(4);
+      const ethBalance = parseFloat(ethers.utils.formatEther(balance)).toFixed(
+        4,
+      );
       setDebugInfo((prev) => prev + ` | Balance: ${ethBalance} ETH`);
 
       await loadExpenses(contractInstance);
-      // await loadPaymentRequests(contractInstance);
+      await loadPaymentRequests(contractInstance);
 
       await getContractBalance(providerInstance);
       setIsLoading(false);
@@ -477,6 +481,7 @@ function App() {
     setNftImage(null);
     setNftImageFile(null);
     setSelectedExpenseForNFT("");
+    setPushUser(null);
   }, []);
 
   // Request payment from someone
@@ -493,7 +498,7 @@ function App() {
 
     try {
       setRequestLoading(true);
-      const amt = ethers.parseEther(requestAmount);
+      const amt = ethers.utils.parseEther(requestAmount);
 
       const tx = await contract.requestPayment(
         requestRecipient,
@@ -503,6 +508,7 @@ function App() {
 
       await tx.wait();
 
+      // ===== SEND NOTIFICATION (NOW UNCOMMENTED) =====
       await sendPushNotification(
         requestRecipient,
         `💸 Payment Request`,
@@ -543,7 +549,7 @@ function App() {
 
       try {
         setLoading(true);
-        const amt = ethers.parseEther(amount.toString());
+        const amt = ethers.utils.parseEther(amount.toString());
 
         const tx = await contract.payRequest(requestId, { value: amt });
         await tx.wait();
@@ -697,7 +703,9 @@ function App() {
     if (!providerInstance) return;
     try {
       const balance = await providerInstance.getBalance(CONTRACT_ADDRESS);
-      const ethBalance = parseFloat(ethers.formatEther(balance)).toFixed(4);
+      const ethBalance = parseFloat(ethers.utils.formatEther(balance)).toFixed(
+        4,
+      );
       setContractBalance(ethBalance);
     } catch (error) {
       console.error("Failed to get contract balance:", error);
@@ -740,7 +748,7 @@ function App() {
       setLoading(true);
       setError("");
 
-      const amt = ethers.parseEther(amount);
+      const amt = ethers.utils.parseEther(amount);
       const statusValue = parseInt(status);
 
       const tx = await contract.addExpense(
@@ -755,7 +763,7 @@ function App() {
 
       await tx.wait();
 
-      // --- SEND NOTIFICATIONS (commented out for testing) ---
+      // ===== SEND NOTIFICATIONS (NOW UNCOMMENTED) =====
       const shareAmountEth = (parseFloat(amount) / 3).toFixed(4);
 
       if (person1Address) {
@@ -784,10 +792,9 @@ function App() {
         );
         console.log(`📨 Notification sent to ${paidBy}`);
       }
-      // --- END NOTIFICATIONS ---
 
-      // --- AUTO-CREATE PAYMENT REQUESTS ---
-      const shareAmountWei = amt / 3n;
+      // ===== AUTO-CREATE PAYMENT REQUESTS =====
+      const shareAmountWei = amt.div(3);
 
       if (person1Address && person1Address !== payerAddress) {
         try {
@@ -816,7 +823,6 @@ function App() {
           console.error("Failed to create request for person2:", err);
         }
       }
-      // --- END AUTO-PAYMENT REQUESTS ---
 
       // Clear form after successful submission
       setExpenseName("");
@@ -1057,7 +1063,7 @@ function App() {
             </div>
           )}
 
-          {/* Notification Status */}
+          {/* ===== NOTIFICATION STATUS (NOW SHOWING ACTIVE) ===== */}
           {isConnected && pushUser && (
             <div className="mb-4 p-2 bg-green-50 border border-green-200 rounded-lg text-sm flex items-center gap-2">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -1067,6 +1073,16 @@ function App() {
                 <span className="text-xs text-green-500 ml-1">
                   • Participants will be notified
                 </span>
+              </span>
+            </div>
+          )}
+
+          {isConnected && !pushUser && (
+            <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded-lg text-sm flex items-center gap-2">
+              <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+              <span className="text-yellow-700">
+                <i className="fas fa-bell mr-1"></i>
+                Setting up notifications...
               </span>
             </div>
           )}
@@ -1835,7 +1851,7 @@ function App() {
               </div>
             </div>
 
-            {/* Push Notifications Section */}
+            {/* ===== PUSH NOTIFICATIONS SECTION (NOW SHOWING ACTIVE) ===== */}
             <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl shadow-xl p-6 text-white">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <i className="fas fa-bell"></i> Push Notifications
@@ -1870,6 +1886,7 @@ function App() {
                 <li>5️⃣ Select "Bad Debt" to mark someone who didn't pay</li>
                 <li>6️⃣ Mint NFT receipt for paid expenses</li>
                 <li>7️⃣ Click "Import to MetaMask" to view your NFTs</li>
+                <li>🔔 Push notifications sent to all participants</li>
                 <li>⚠️ Make sure you're on Sepolia network!</li>
               </ul>
             </div>

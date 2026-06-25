@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {Script} from "forge-std/Script.sol";
-import {ExpenseNFT} from "../src/ExpenseNft.sol";  // ← FIXED PATH
-import {console} from "forge-std/console.sol";  // ← ADD THIS LINE
+import {ExpenseNFT} from "../src/ExpenseNft.sol";
+import {console} from "forge-std/console.sol";
 
 contract DeployNFT is Script {
     function run() external {
@@ -11,7 +11,8 @@ contract DeployNFT is Script {
         
         vm.startBroadcast(deployerPrivateKey);
         
-        ExpenseNFT nft = new ExpenseNFT(vm.addr(deployerPrivateKey));
+        // REMOVE the argument - constructor takes 0 arguments
+        ExpenseNFT nft = new ExpenseNFT();
         
         console.log("NFT Contract Address:", address(nft));
         

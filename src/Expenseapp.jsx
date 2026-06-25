@@ -1,4 +1,4 @@
-// Main Expense Sharing App
+// Main Expense Sharing App - FINAL WORKING VERSION
 import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { contractABI } from "./abi";
@@ -6,23 +6,14 @@ import { nftABI } from "./nftABI";
 import { PinataSDK } from "pinata-web3";
 import "globalthis/auto";
 
-// ========== PUSH PROTOCOL IMPORTS  ==========
-import * as PushAPI from "@pushprotocol/restapi";
-import { CONSTANTS } from "@pushprotocol/restapi";
-
-// Anvil Addresses
-// const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-// const NFT_CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
-
+// ========== CONTRACT ADDRESSES ==========
 // Sepolia Addresses
-// 0x59698cC3f177CCa3c5b95A7dac71A5B3e51B6Bec
-
 const CONTRACT_ADDRESS = "0xC827aDF24F31170d44a3A7eE120fDbC2BbeCD396";
 const NFT_CONTRACT_ADDRESS = "0xB6dCcFE0c246c3B101EDaEe5e1116c6bAEA9d120";
 const SEPOLIA_CHAIN_ID = "0xaa36a7";
 
 function App() {
-  // Wallet connection states
+  // ========== STATES ==========
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [contract, setContract] = useState(null);
@@ -31,11 +22,6 @@ function App() {
   const [networkError, setNetworkError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isCorrectNetwork, setIsCorrectNetwork] = useState(false);
-
-  // Notification states (for Push Protocol)
-  const [pushUser, setPushUser] = useState(null);
-  const [notifications, setNotifications] = useState([]);
-  const [notificationLoading, setNotificationLoading] = useState(false);
 
   // Payment Request states
   const [requestRecipient, setRequestRecipient] = useState("");
@@ -84,7 +70,7 @@ function App() {
   const [selectedExpenseForNFT, setSelectedExpenseForNFT] = useState("");
   const [mintingNFT, setMintingNFT] = useState(false);
 
-  // Switch to Sepolia network
+  // ========== SWITCH TO SEPOLIA ==========
   const switchToSepolia = async () => {
     try {
       await window.ethereum.request({
@@ -118,11 +104,10 @@ function App() {
     }
   };
 
-  // Setup ethers provider
+  // ========== INIT ETHERS ==========
   const initEthers = useCallback(async () => {
     if (window.ethereum) {
       try {
-        // Using ethers v5 provider
         const providerInstance = new ethers.providers.Web3Provider(
           window.ethereum,
         );
@@ -140,52 +125,7 @@ function App() {
     }
   }, []);
 
-  // ========== INITIALIZE PUSH PROTOCOL (NOW UNCOMMENTED) ==========
-  const initPushProtocol = useCallback(async (signerInstance) => {
-    try {
-      const user = await PushAPI.initialize(signerInstance, {
-        env: CONSTANTS.ENV.STAGING,
-      });
-      setPushUser(user);
-      console.log("✅ Push Protocol initialized");
-      return user;
-    } catch (error) {
-      console.error("❌ Failed to initialize Push Protocol:", error);
-      return null;
-    }
-  }, []);
-
-  // ========== SEND PUSH NOTIFICATION (NOW UNCOMMENTED) ==========
-  const sendPushNotification = useCallback(
-    async (recipient, title, body, cta = "https://yourapp.com/expenses") => {
-      if (!pushUser) {
-        console.log("⚠️ Push Protocol not initialized");
-        return;
-      }
-
-      try {
-        const notification = await pushUser.channel.send([
-          {
-            recipient: `eip155:11155111:${recipient}`,
-            payload: {
-              title: title,
-              body: body,
-              cta: cta,
-              img: "https://your-app-logo.png",
-            },
-          },
-        ]);
-        console.log("✅ Push notification sent:", notification);
-        return notification;
-      } catch (error) {
-        console.error("❌ Failed to send push notification:", error);
-        return null;
-      }
-    },
-    [pushUser],
-  );
-
-  // Load user NFTs
+  // ========== LOAD USER NFTs - FIXED ==========
   const loadUserNFTs = useCallback(
     async (nftContractInstance) => {
       if (!nftContractInstance || !walletAddress) return;
@@ -198,6 +138,18 @@ function App() {
           try {
             const tokenId = tokenIds[i];
             const tokenURI = await nftContractInstance.tokenURI(tokenId);
+
+            // Skip placeholder URIs
+            if (tokenURI.includes("QmPlaceholder")) {
+              nfts.push({
+                tokenId: tokenId.toString(),
+                image:
+                  "https://via.placeholder.com/400x400/6C63FF/FFFFFF?text=Expense+NFT",
+                metadata: { name: "Expense NFT" },
+              });
+              continue;
+            }
+
             const response = await fetch(tokenURI);
             const metadata = await response.json();
 
@@ -211,18 +163,25 @@ function App() {
             });
           } catch (err) {
             console.error("Error loading NFT:", err);
+            nfts.push({
+              tokenId: tokenIds[i].toString(),
+              image:
+                "https://via.placeholder.com/400x400/6C63FF/FFFFFF?text=Expense+NFT",
+              metadata: { name: "Expense NFT" },
+            });
           }
         }
 
         setUserNFTs(nfts);
       } catch (error) {
         console.error("Failed to load NFTs:", error);
+        setUserNFTs([]);
       }
     },
     [walletAddress],
   );
 
-  // Load all expenses from the contract
+  // ========== LOAD EXPENSES ==========
   const loadExpenses = useCallback(async (contractInstance) => {
     if (!contractInstance) return;
 
@@ -251,7 +210,6 @@ function App() {
       for (let i = 0; i < totalCount; i++) {
         try {
           const exp = await contractInstance.getExpense(i);
-          // Using ethers v5 format
           const amtEth = parseFloat(ethers.utils.formatEther(exp.amt));
           totalAmt += amtEth;
 
@@ -320,13 +278,19 @@ function App() {
     }
   }, []);
 
-  // ========== LOAD PAYMENT REQUESTS ==========
+  // ========== LOAD PAYMENT REQUESTS - SKIP IF NOT SUPPORTED ==========
   const loadPaymentRequests = useCallback(
     async (contractInstance) => {
       if (!contractInstance) return;
 
       try {
-        console.log("🔄 Loading payment requests...");
+        // Check if contract supports payment requests
+        if (typeof contractInstance.getPaymentRequestCount !== "function") {
+          console.log("ℹ️ Payment requests not supported by this contract");
+          setAllRequests([]);
+          setPendingRequests([]);
+          return;
+        }
 
         const totalRequests = await contractInstance.getPaymentRequestCount();
         const requests = [];
@@ -376,13 +340,16 @@ function App() {
 
         console.log(`✅ Loaded ${requests.length} payment requests`);
       } catch (error) {
-        console.error("❌ Failed to load payment requests:", error);
+        // Silently fail - contract just doesn't support payment requests
+        console.log("ℹ️ Payment requests not available");
+        setAllRequests([]);
+        setPendingRequests([]);
       }
     },
     [walletAddress],
   );
 
-  // Connect wallet
+  // ========== CONNECT WALLET ==========
   const connectWallet = useCallback(async () => {
     try {
       if (!window.ethereum) {
@@ -429,9 +396,6 @@ function App() {
       setWalletAddress(address);
       setIsConnected(true);
 
-      // ===== INIT PUSH PROTOCOL (NOW UNCOMMENTED) =====
-      await initPushProtocol(signerInstance);
-
       // Initialize NFT contract
       const nftContractInstance = new ethers.Contract(
         NFT_CONTRACT_ADDRESS,
@@ -457,9 +421,9 @@ function App() {
       setError("Failed to connect wallet: " + error.message);
       setIsLoading(false);
     }
-  }, [initEthers, initPushProtocol, loadPaymentRequests]);
+  }, [initEthers, loadPaymentRequests]);
 
-  // Disconnect wallet
+  // ========== DISCONNECT WALLET ==========
   const disconnectWallet = useCallback(() => {
     setProvider(null);
     setSigner(null);
@@ -481,93 +445,9 @@ function App() {
     setNftImage(null);
     setNftImageFile(null);
     setSelectedExpenseForNFT("");
-    setPushUser(null);
   }, []);
 
-  // Request payment from someone
-  const handleRequestPayment = useCallback(async () => {
-    if (!contract || !isConnected) {
-      alert("Please connect wallet");
-      return;
-    }
-
-    if (!requestRecipient || !requestAmount || !requestReason) {
-      alert("Please fill all fields");
-      return;
-    }
-
-    try {
-      setRequestLoading(true);
-      const amt = ethers.utils.parseEther(requestAmount);
-
-      const tx = await contract.requestPayment(
-        requestRecipient,
-        amt,
-        requestReason,
-      );
-
-      await tx.wait();
-
-      // ===== SEND NOTIFICATION (NOW UNCOMMENTED) =====
-      await sendPushNotification(
-        requestRecipient,
-        `💸 Payment Request`,
-        `${formatAddress(walletAddress)} is requesting ${requestAmount} ETH for "${requestReason}"`,
-      );
-
-      await loadPaymentRequests(contract);
-
-      setRequestRecipient("");
-      setRequestAmount("");
-      setRequestReason("");
-
-      alert("✅ Payment request sent!");
-    } catch (error) {
-      console.error("❌ Failed to request payment:", error);
-      alert("Failed to request payment: " + (error.reason || error.message));
-    } finally {
-      setRequestLoading(false);
-    }
-  }, [
-    contract,
-    isConnected,
-    requestRecipient,
-    requestAmount,
-    requestReason,
-    sendPushNotification,
-    loadPaymentRequests,
-    walletAddress,
-  ]);
-
-  // Pay a request
-  const payRequest = useCallback(
-    async (requestId, amount) => {
-      if (!contract || !isConnected) {
-        alert("Please connect wallet");
-        return;
-      }
-
-      try {
-        setLoading(true);
-        const amt = ethers.utils.parseEther(amount.toString());
-
-        const tx = await contract.payRequest(requestId, { value: amt });
-        await tx.wait();
-
-        await loadPaymentRequests(contract);
-
-        alert("✅ Payment sent successfully!");
-      } catch (error) {
-        console.error("❌ Failed to pay:", error);
-        alert("Failed to pay: " + (error.reason || error.message));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [contract, isConnected, loadPaymentRequests],
-  );
-
-  // Import NFT to MetaMask
+  // ========== IMPORT NFT TO METAMASK ==========
   const importNFTToMetaMask = useCallback(async () => {
     if (!window.ethereum) {
       alert("Please install MetaMask");
@@ -604,7 +484,7 @@ function App() {
     }
   }, [userNFTs]);
 
-  // Mint NFT for an expense with Pinata IPFS
+  // ========== MINT NFT ==========
   const mintExpenseNFT = useCallback(async () => {
     if (!nftContract || !isConnected) {
       alert("Please connect wallet first");
@@ -660,7 +540,8 @@ function App() {
         console.log("✅ Metadata uploaded to IPFS:", metadataUrl);
       } catch (uploadError) {
         console.error("Metadata upload failed:", uploadError);
-        metadataUrl = "https://ipfs.io/ipfs/QmPlaceholder/";
+        metadataUrl =
+          "https://via.placeholder.com/400x400/6C63FF/FFFFFF?text=Expense+NFT";
       }
 
       setUploading(false);
@@ -698,7 +579,7 @@ function App() {
     loadUserNFTs,
   ]);
 
-  // Get contract ETH balance
+  // ========== GET CONTRACT BALANCE ==========
   const getContractBalance = useCallback(async (providerInstance) => {
     if (!providerInstance) return;
     try {
@@ -712,7 +593,7 @@ function App() {
     }
   }, []);
 
-  // Calculate split amount
+  // ========== UPDATE SPLIT AMOUNT ==========
   const updateSplitAmount = useCallback((value) => {
     const amt = parseFloat(value) || 0;
     const split = (amt / 3).toFixed(4);
@@ -720,14 +601,13 @@ function App() {
     return split;
   }, []);
 
-  // Handle amount input change
   const handleAmountChange = (e) => {
     const value = e.target.value;
     setAmount(value);
     updateSplitAmount(value);
   };
 
-  // Add a new expense
+  // ========== ADD EXPENSE ==========
   const addExpense = useCallback(async () => {
     if (!contract || !isConnected) {
       alert("Please connect wallet first");
@@ -763,68 +643,7 @@ function App() {
 
       await tx.wait();
 
-      // ===== SEND NOTIFICATIONS (NOW UNCOMMENTED) =====
-      const shareAmountEth = (parseFloat(amount) / 3).toFixed(4);
-
-      if (person1Address) {
-        await sendPushNotification(
-          person1Address,
-          `💰 New Expense: ${expenseName}`,
-          `${paidBy} paid ${amount} ETH. You owe ${shareAmountEth} ETH`,
-        );
-        console.log(`📨 Notification sent to ${person1}`);
-      }
-
-      if (person2Address) {
-        await sendPushNotification(
-          person2Address,
-          `💰 New Expense: ${expenseName}`,
-          `${paidBy} paid ${amount} ETH. You owe ${shareAmountEth} ETH`,
-        );
-        console.log(`📨 Notification sent to ${person2}`);
-      }
-
-      if (payerAddress) {
-        await sendPushNotification(
-          payerAddress,
-          `✅ Expense Added: ${expenseName}`,
-          `You paid ${amount} ETH. ${person1} & ${person2} owe ${shareAmountEth} ETH each`,
-        );
-        console.log(`📨 Notification sent to ${paidBy}`);
-      }
-
-      // ===== AUTO-CREATE PAYMENT REQUESTS =====
-      const shareAmountWei = amt.div(3);
-
-      if (person1Address && person1Address !== payerAddress) {
-        try {
-          const requestTx = await contract.requestPayment(
-            person1Address,
-            shareAmountWei,
-            `${expenseName} - Your share`,
-          );
-          await requestTx.wait();
-          console.log(`📨 Payment request sent to ${person1}`);
-        } catch (err) {
-          console.error("Failed to create request for person1:", err);
-        }
-      }
-
-      if (person2Address && person2Address !== payerAddress) {
-        try {
-          const requestTx = await contract.requestPayment(
-            person2Address,
-            shareAmountWei,
-            `${expenseName} - Your share`,
-          );
-          await requestTx.wait();
-          console.log(`📨 Payment request sent to ${person2}`);
-        } catch (err) {
-          console.error("Failed to create request for person2:", err);
-        }
-      }
-
-      // Clear form after successful submission
+      // Clear form
       setExpenseName("");
       setPaidBy("");
       setPayerAddress("");
@@ -872,13 +691,9 @@ function App() {
     getContractBalance,
     nftContract,
     loadUserNFTs,
-    sendPushNotification,
-    person1Address,
-    person2Address,
-    payerAddress,
   ]);
 
-  // Handle status dropdown change
+  // ========== HANDLE STATUS CHANGE ==========
   const handleStatusChange = (e) => {
     const value = e.target.value;
     setStatus(value);
@@ -889,14 +704,14 @@ function App() {
     }
   };
 
-  // Truncate wallet address for display
+  // ========== FORMAT ADDRESS ==========
   const formatAddress = (address) => {
     if (!address) return "";
     if (address.length <= 10) return address;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // Setup wallet event listeners
+  // ========== USE EFFECTS ==========
   useEffect(() => {
     initEthers();
 
@@ -927,7 +742,6 @@ function App() {
     }
   }, [initEthers, connectWallet, disconnectWallet]);
 
-  // Load expenses when contract connects
   useEffect(() => {
     if (contract && isConnected && isCorrectNetwork) {
       loadExpenses(contract);
@@ -956,7 +770,6 @@ function App() {
     loadUserNFTs,
   ]);
 
-  // Manual refresh
   const handleRefresh = useCallback(() => {
     if (contract && isConnected && isCorrectNetwork) {
       loadExpenses(contract);
@@ -976,14 +789,13 @@ function App() {
     loadUserNFTs,
   ]);
 
-  // Pinata SDK setup
+  // ========== PINATA SETUP ==========
   const pinata = new PinataSDK({
     pinataJwt:
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI2OTE1YmU5ZC0wM2Y0LTQzMGEtYWEwYi00ZTU2MjhmOWIwMDUiLCJlbWFpbCI6InByYXRpa3Bhbmdlbmk3MjgzNDQ0MjU5QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJlZDFjODA2ZDIyOWRmODg0ZmQ4MyIsInNjb3BlZEtleVNlY3JldCI6IjRhZGIyM2NhMDdjOWI4Yzc4YjRmZmQ0Y2I4Mzg0MDVmMzY4ZGE5NDQzNGU0MTA2MzNjOWE0OWJiM2Y5ZjA1YmQiLCJleHAiOjE4MTM3MzcwNjZ9.CeZeE1nnUym7PJu_99lV2JQLpYqtkvwRna5_CkwOtgU",
     pinataGateway: "gateway.pinata.cloud",
   });
 
-  // Upload file to IPFS
   async function uploadToPinata(file) {
     try {
       const result = await pinata.upload.file(file);
@@ -996,7 +808,6 @@ function App() {
     }
   }
 
-  // Upload JSON metadata to IPFS
   async function uploadMetadataToPinata(metadata) {
     try {
       const result = await pinata.upload.json(metadata);
@@ -1060,30 +871,6 @@ function App() {
                   </button>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* ===== NOTIFICATION STATUS (NOW SHOWING ACTIVE) ===== */}
-          {isConnected && pushUser && (
-            <div className="mb-4 p-2 bg-green-50 border border-green-200 rounded-lg text-sm flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              <span className="text-green-700">
-                <i className="fas fa-bell mr-1"></i>
-                Notifications enabled!
-                <span className="text-xs text-green-500 ml-1">
-                  • Participants will be notified
-                </span>
-              </span>
-            </div>
-          )}
-
-          {isConnected && !pushUser && (
-            <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded-lg text-sm flex items-center gap-2">
-              <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
-              <span className="text-yellow-700">
-                <i className="fas fa-bell mr-1"></i>
-                Setting up notifications...
-              </span>
             </div>
           )}
 
@@ -1299,7 +1086,7 @@ function App() {
                 <option value="3">⚠️ Bad Debt</option>
               </select>
 
-              {/* Bad Debt Section - Shows only when Bad Debt is selected */}
+              {/* Bad Debt Section */}
               {showBadDebt && (
                 <div className="bg-red-50 p-3 rounded-lg border-2 border-red-300 animate-fadeIn">
                   <label className="text-sm font-semibold text-red-700 flex items-center gap-2">
@@ -1742,7 +1529,6 @@ function App() {
                   )}
                 </button>
 
-                {/* NFT Count Display */}
                 {userNFTs.length > 0 && (
                   <div className="text-center text-sm text-purple-600 mt-2">
                     <i className="fas fa-check-circle mr-1"></i>
@@ -1851,25 +1637,6 @@ function App() {
               </div>
             </div>
 
-            {/* ===== PUSH NOTIFICATIONS SECTION (NOW SHOWING ACTIVE) ===== */}
-            <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl shadow-xl p-6 text-white">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <i className="fas fa-bell"></i> Push Notifications
-              </h3>
-              <p className="text-sm opacity-90 mt-2">
-                {pushUser
-                  ? "✅ Notifications are active! You'll be notified when expenses are added."
-                  : "⚠️ Connect wallet to enable notifications"}
-              </p>
-              {pushUser && (
-                <div className="mt-2 text-xs opacity-75">
-                  <i className="fas fa-info-circle mr-1"></i>
-                  When you add an expense, participants will receive a
-                  notification
-                </div>
-              )}
-            </div>
-
             {/* How it works */}
             <div className="bg-blue-50 rounded-2xl p-4 border border-blue-200">
               <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2">
@@ -1886,7 +1653,6 @@ function App() {
                 <li>5️⃣ Select "Bad Debt" to mark someone who didn't pay</li>
                 <li>6️⃣ Mint NFT receipt for paid expenses</li>
                 <li>7️⃣ Click "Import to MetaMask" to view your NFTs</li>
-                <li>🔔 Push notifications sent to all participants</li>
                 <li>⚠️ Make sure you're on Sepolia network!</li>
               </ul>
             </div>

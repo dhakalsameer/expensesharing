@@ -16,7 +16,8 @@ const NFT_STORAGE_TOKEN = "f388e6ee.c3483e6c24f04144be244fc85f6a17d2";
 const nftStorage = new NFTStorage({ token: NFT_STORAGE_TOKEN });
 
 // ===== PLACEHOLDER IMAGE (fallback) =====
-const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%236C63FF'/%3E%3Ctext x='50%25' y='50%25' font-size='24' fill='white' text-anchor='middle' dominant-baseline='central'%3E💰 Expense NFT%3C/text%3E%3C/svg%3E";
+const PLACEHOLDER_IMAGE =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%236C63FF'/%3E%3Ctext x='50%25' y='50%25' font-size='24' fill='white' text-anchor='middle' dominant-baseline='central'%3E💰 Expense NFT%3C/text%3E%3C/svg%3E";
 
 function App() {
   // ===== WALLET STATES =====
@@ -114,7 +115,9 @@ function App() {
   const initEthers = useCallback(async () => {
     if (window.ethereum) {
       try {
-        const providerInstance = new ethers.providers.Web3Provider(window.ethereum);
+        const providerInstance = new ethers.providers.Web3Provider(
+          window.ethereum,
+        );
         setProvider(providerInstance);
         setNetworkError("");
         return providerInstance;
@@ -144,8 +147,10 @@ function App() {
 
   const uploadMetadataToNFTStorage = useCallback(async (metadata) => {
     try {
-      const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
-      const metadataFile = new File([metadataBlob], 'metadata.json');
+      const metadataBlob = new Blob([JSON.stringify(metadata)], {
+        type: "application/json",
+      });
+      const metadataFile = new File([metadataBlob], "metadata.json");
       const cid = await nftStorage.storeBlob(metadataFile);
       const url = `https://${cid}.ipfs.nftstorage.link/metadata.json`;
       console.log("✅ Metadata uploaded to NFT.Storage:", url);
@@ -171,9 +176,11 @@ function App() {
             const tokenURI = await nftContractInstance.tokenURI(tokenId);
 
             // Skip placeholders
-            if (tokenURI.includes("QmPlaceholder") || 
-                tokenURI.includes("via.placeholder") || 
-                tokenURI.includes("data:image")) {
+            if (
+              tokenURI.includes("QmPlaceholder") ||
+              tokenURI.includes("via.placeholder") ||
+              tokenURI.includes("data:image")
+            ) {
               nfts.push({
                 tokenId: tokenId.toString(),
                 image: PLACEHOLDER_IMAGE,
@@ -191,11 +198,15 @@ function App() {
                 metadata = await response.json();
                 image = metadata.image || PLACEHOLDER_IMAGE;
               } else {
-                console.log(`⚠️ Failed to fetch metadata for token ${tokenId}, using placeholder`);
+                console.log(
+                  `⚠️ Failed to fetch metadata for token ${tokenId}, using placeholder`,
+                );
                 image = PLACEHOLDER_IMAGE;
               }
             } catch (err) {
-              console.log(`⚠️ Error fetching metadata for token ${tokenId}, using placeholder`);
+              console.log(
+                `⚠️ Error fetching metadata for token ${tokenId}, using placeholder`,
+              );
               image = PLACEHOLDER_IMAGE;
             }
 
@@ -221,7 +232,7 @@ function App() {
         setUserNFTs([]);
       }
     },
-    [walletAddress]
+    [walletAddress],
   );
 
   // ===== LOAD EXPENSES =====
@@ -283,7 +294,9 @@ function App() {
             });
           }
 
-          const shareAmountEth = parseFloat(ethers.utils.formatEther(exp.shareamount || 0));
+          const shareAmountEth = parseFloat(
+            ethers.utils.formatEther(exp.shareamount || 0),
+          );
 
           expenseList.push({
             id: i,
@@ -346,7 +359,9 @@ function App() {
               amount: amountEth,
               reason: req.reason,
               isPaid: req.isPaid,
-              timestamp: new Date(Number(req.timestamp) * 1000).toLocaleString(),
+              timestamp: new Date(
+                Number(req.timestamp) * 1000,
+              ).toLocaleString(),
             });
           } catch (err) {
             console.error(`Error loading request ${i}:`, err);
@@ -356,16 +371,21 @@ function App() {
         setAllRequests(requests);
 
         if (walletAddress) {
-          const pending = await contractInstance.getPendingRequests(walletAddress);
+          const pending =
+            await contractInstance.getPendingRequests(walletAddress);
           const pendingList = [];
           for (let i = 0; i < pending.length; i++) {
-            const amountEth = parseFloat(ethers.utils.formatEther(pending[i].amount));
+            const amountEth = parseFloat(
+              ethers.utils.formatEther(pending[i].amount),
+            );
             pendingList.push({
               from: pending[i].from,
               amount: amountEth,
               reason: pending[i].reason,
               isPaid: pending[i].isPaid,
-              timestamp: new Date(Number(pending[i].timestamp) * 1000).toLocaleString(),
+              timestamp: new Date(
+                Number(pending[i].timestamp) * 1000,
+              ).toLocaleString(),
             });
           }
           setPendingRequests(pendingList);
@@ -378,7 +398,7 @@ function App() {
         setPendingRequests([]);
       }
     },
-    [walletAddress]
+    [walletAddress],
   );
 
   // ===== CONNECT WALLET =====
@@ -420,7 +440,7 @@ function App() {
       const contractInstance = new ethers.Contract(
         checksumAddress,
         contractABI,
-        signerInstance
+        signerInstance,
       );
 
       setSigner(signerInstance);
@@ -431,13 +451,15 @@ function App() {
       const nftContractInstance = new ethers.Contract(
         NFT_CONTRACT_ADDRESS,
         nftABI,
-        signerInstance
+        signerInstance,
       );
       setNftContract(nftContractInstance);
       await loadUserNFTs(nftContractInstance);
 
       const balance = await providerInstance.getBalance(CONTRACT_ADDRESS);
-      const ethBalance = parseFloat(ethers.utils.formatEther(balance)).toFixed(4);
+      const ethBalance = parseFloat(ethers.utils.formatEther(balance)).toFixed(
+        4,
+      );
       setDebugInfo((prev) => prev + ` | Balance: ${ethBalance} ETH`);
 
       await loadExpenses(contractInstance);
@@ -529,7 +551,9 @@ function App() {
       setMintingNFT(true);
       setUploading(true);
 
-      const expense = expenses.find((e) => e.id === parseInt(selectedExpenseForNFT));
+      const expense = expenses.find(
+        (e) => e.id === parseInt(selectedExpenseForNFT),
+      );
       if (!expense) {
         alert("Expense not found");
         return;
@@ -576,7 +600,7 @@ function App() {
         walletAddress,
         metadataUrl,
         expense.id,
-        expense.expname
+        expense.expname,
       );
 
       await tx.wait();
@@ -612,7 +636,9 @@ function App() {
     if (!providerInstance) return;
     try {
       const balance = await providerInstance.getBalance(CONTRACT_ADDRESS);
-      const ethBalance = parseFloat(ethers.utils.formatEther(balance)).toFixed(4);
+      const ethBalance = parseFloat(ethers.utils.formatEther(balance)).toFixed(
+        4,
+      );
       setContractBalance(ethBalance);
     } catch (error) {
       console.error("Failed to get contract balance:", error);
@@ -664,7 +690,7 @@ function App() {
         person2,
         location || "Unknown",
         amt,
-        statusValue
+        statusValue,
       );
 
       await tx.wait();
@@ -753,7 +779,11 @@ function App() {
       setRequestLoading(true);
       const amt = ethers.utils.parseEther(requestAmount);
 
-      const tx = await contract.requestPayment(requestRecipient, amt, requestReason);
+      const tx = await contract.requestPayment(
+        requestRecipient,
+        amt,
+        requestReason,
+      );
       await tx.wait();
 
       await loadPaymentRequests(contract);
@@ -769,32 +799,42 @@ function App() {
     } finally {
       setRequestLoading(false);
     }
-  }, [contract, isConnected, requestRecipient, requestAmount, requestReason, loadPaymentRequests]);
+  }, [
+    contract,
+    isConnected,
+    requestRecipient,
+    requestAmount,
+    requestReason,
+    loadPaymentRequests,
+  ]);
 
   // ===== PAY REQUEST =====
-  const payRequest = useCallback(async (requestId, amount) => {
-    if (!contract || !isConnected) {
-      alert("Please connect wallet");
-      return;
-    }
+  const payRequest = useCallback(
+    async (requestId, amount) => {
+      if (!contract || !isConnected) {
+        alert("Please connect wallet");
+        return;
+      }
 
-    try {
-      setLoading(true);
-      const amt = ethers.utils.parseEther(amount.toString());
+      try {
+        setLoading(true);
+        const amt = ethers.utils.parseEther(amount.toString());
 
-      const tx = await contract.payRequest(requestId, { value: amt });
-      await tx.wait();
+        const tx = await contract.payRequest(requestId, { value: amt });
+        await tx.wait();
 
-      await loadPaymentRequests(contract);
+        await loadPaymentRequests(contract);
 
-      alert("✅ Payment sent successfully!");
-    } catch (error) {
-      console.error("❌ Failed to pay:", error);
-      alert("Failed to pay: " + (error.reason || error.message));
-    } finally {
-      setLoading(false);
-    }
-  }, [contract, isConnected, loadPaymentRequests]);
+        alert("✅ Payment sent successfully!");
+      } catch (error) {
+        console.error("❌ Failed to pay:", error);
+        alert("Failed to pay: " + (error.reason || error.message));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [contract, isConnected, loadPaymentRequests],
+  );
 
   // ===== USE EFFECTS =====
   useEffect(() => {
@@ -817,7 +857,10 @@ function App() {
 
       return () => {
         if (window.ethereum) {
-          window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+          window.ethereum.removeListener(
+            "accountsChanged",
+            handleAccountsChanged,
+          );
           window.ethereum.removeListener("chainChanged", handleChainChanged);
         }
       };

@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import ExpenseApp from "./App";
+import App from "./App";
 import "./index.css";
 import "globalthis/auto";
 

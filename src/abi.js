@@ -1,37 +1,58 @@
-// src/abi.js
 export const contractABI = [
   {
     "type": "function",
     "name": "addExpense",
     "inputs": [
-      { "name": "_expname", "type": "string" },
-      { "name": "_paidby", "type": "string" },
-      { "name": "_person1", "type": "string" },
-      { "name": "_person2", "type": "string" },
-      { "name": "_paddress", "type": "string" },
-      { "name": "_amt", "type": "uint256" },
-      { "name": "_status", "type": "uint8" }
+      { "name": "_expname", "type": "string", "internalType": "string" },
+      { "name": "_paidby", "type": "string", "internalType": "string" },
+      { "name": "_payerAddress", "type": "address", "internalType": "address" },
+      { "name": "_participants", "type": "address[]", "internalType": "address[]" },
+      { "name": "_participantNames", "type": "string[]", "internalType": "string[]" },
+      { "name": "_paddress", "type": "string", "internalType": "string" },
+      { "name": "_amt", "type": "uint256", "internalType": "uint256" },
+      { "name": "_status", "type": "uint8", "internalType": "enum Storage.Status" }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "getExpense",
-    "inputs": [{ "name": "_id", "type": "uint256" }],
+    "name": "expenseId",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "expenses",
+    "inputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [
+      { "name": "expname", "type": "string", "internalType": "string" },
+      { "name": "paidby", "type": "string", "internalType": "string" },
+      { "name": "payerAddress", "type": "address", "internalType": "address" },
+      { "name": "paddress", "type": "string", "internalType": "string" },
+      { "name": "amt", "type": "uint256", "internalType": "uint256" },
+      { "name": "shareamount", "type": "uint256", "internalType": "uint256" },
+      { "name": "status", "type": "uint8", "internalType": "enum Storage.Status" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getAllPaymentRequests",
+    "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "tuple",
+        "type": "tuple[]",
+        "internalType": "struct Storage.PaymentRequest[]",
         "components": [
-          { "name": "expname", "type": "string" },
-          { "name": "paidby", "type": "string" },
-          { "name": "person1", "type": "string" },
-          { "name": "person2", "type": "string" },
-          { "name": "paddress", "type": "string" },
-          { "name": "amt", "type": "uint256" },
-          { "name": "shareamount", "type": "uint256" },
-          { "name": "status", "type": "uint8" }
+          { "name": "from", "type": "address", "internalType": "address" },
+          { "name": "to", "type": "address", "internalType": "address" },
+          { "name": "amount", "type": "uint256", "internalType": "uint256" },
+          { "name": "reason", "type": "string", "internalType": "string" },
+          { "name": "isPaid", "type": "bool", "internalType": "bool" },
+          { "name": "timestamp", "type": "uint256", "internalType": "uint256" }
         ]
       }
     ],
@@ -39,44 +60,164 @@ export const contractABI = [
   },
   {
     "type": "function",
-    "name": "getLength",
-    "inputs": [],
-    "outputs": [{ "name": "", "type": "uint256" }],
+    "name": "getBadDebtors",
+    "inputs": [{ "name": "_id", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [{ "name": "", "type": "address[]", "internalType": "address[]" }],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "getStatus",
+    "name": "getExpense",
+    "inputs": [{ "name": "_id", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [
+      { "name": "expname", "type": "string", "internalType": "string" },
+      { "name": "paidby", "type": "string", "internalType": "string" },
+      { "name": "payerAddress", "type": "address", "internalType": "address" },
+      { "name": "paddress", "type": "string", "internalType": "string" },
+      { "name": "amt", "type": "uint256", "internalType": "uint256" },
+      { "name": "shareamount", "type": "uint256", "internalType": "uint256" },
+      { "name": "status", "type": "uint8", "internalType": "enum Storage.Status" },
+      { "name": "participants", "type": "address[]", "internalType": "address[]" },
+      { "name": "participantNames", "type": "string[]", "internalType": "string[]" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getLength",
     "inputs": [],
-    "outputs": [{ "name": "", "type": "string" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getParticipants",
+    "inputs": [{ "name": "_id", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [
+      { "name": "", "type": "address[]", "internalType": "address[]" },
+      { "name": "", "type": "string[]", "internalType": "string[]" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPaymentRequest",
+    "inputs": [{ "name": "requestId", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct Storage.PaymentRequest",
+        "components": [
+          { "name": "from", "type": "address", "internalType": "address" },
+          { "name": "to", "type": "address", "internalType": "address" },
+          { "name": "amount", "type": "uint256", "internalType": "uint256" },
+          { "name": "reason", "type": "string", "internalType": "string" },
+          { "name": "isPaid", "type": "bool", "internalType": "bool" },
+          { "name": "timestamp", "type": "uint256", "internalType": "uint256" }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPaymentRequestCount",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPendingRequests",
+    "inputs": [{ "name": "debtor", "type": "address", "internalType": "address" }],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct Storage.PaymentRequest[]",
+        "components": [
+          { "name": "from", "type": "address", "internalType": "address" },
+          { "name": "to", "type": "address", "internalType": "address" },
+          { "name": "amount", "type": "uint256", "internalType": "uint256" },
+          { "name": "reason", "type": "string", "internalType": "string" },
+          { "name": "isPaid", "type": "bool", "internalType": "bool" },
+          { "name": "timestamp", "type": "uint256", "internalType": "uint256" }
+        ]
+      }
+    ],
     "stateMutability": "view"
   },
   {
     "type": "function",
     "name": "getShareAmount",
     "inputs": [],
-    "outputs": [{ "name": "", "type": "uint256" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "updateexpense",
+    "name": "getStatus",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "string", "internalType": "string" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "markParticipantPaid",
     "inputs": [
-      { "name": "_expname", "type": "string" },
-      { "name": "_paidby", "type": "string" },
-      { "name": "_person1", "type": "string" },
-      { "name": "_person2", "type": "string" },
-      { "name": "_paddress", "type": "string" },
-      { "name": "_amt", "type": "uint256" },
-      { "name": "_status", "type": "uint8" }
+      { "name": "_id", "type": "uint256", "internalType": "uint256" },
+      { "name": "_participant", "type": "address", "internalType": "address" }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "updateStatus",
-    "inputs": [{ "name": "_newStatus", "type": "uint8" }],
+    "name": "payRequest",
+    "inputs": [{ "name": "requestId", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "paymentRequests",
+    "inputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [
+      { "name": "from", "type": "address", "internalType": "address" },
+      { "name": "to", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      { "name": "reason", "type": "string", "internalType": "string" },
+      { "name": "isPaid", "type": "bool", "internalType": "bool" },
+      { "name": "timestamp", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingRequests",
+    "inputs": [
+      { "name": "", "type": "address", "internalType": "address" },
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "requestPayment",
+    "inputs": [
+      { "name": "to", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      { "name": "reason", "type": "string", "internalType": "string" }
+    ],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "requestPaymentFromPayer",
+    "inputs": [{ "name": "_expenseId", "type": "uint256", "internalType": "uint256" }],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -87,70 +228,63 @@ export const contractABI = [
     "outputs": [],
     "stateMutability": "nonpayable"
   },
-  // ========== PAYMENT REQUEST FUNCTIONS ==========
   {
     "type": "function",
-    "name": "requestPayment",
-    "inputs": [
-      { "name": "to", "type": "address" },
-      { "name": "amount", "type": "uint256" },
-      { "name": "reason", "type": "string" }
-    ],
-    "outputs": [{ "name": "", "type": "uint256" }],
+    "name": "updateStatus",
+    "inputs": [{ "name": "_newStatus", "type": "uint8", "internalType": "enum Storage.Status" }],
+    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
-    "type": "function",
-    "name": "payRequest",
-    "inputs": [{ "name": "requestId", "type": "uint256" }],
-    "outputs": [],
-    "stateMutability": "payable"
-  },
-  {
-    "type": "function",
-    "name": "getPendingRequests",
-    "inputs": [{ "name": "debtor", "type": "address" }],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple[]",
-        "components": [
-          { "name": "from", "type": "address" },
-          { "name": "to", "type": "address" },
-          { "name": "amount", "type": "uint256" },
-          { "name": "reason", "type": "string" },
-          { "name": "isPaid", "type": "bool" },
-          { "name": "timestamp", "type": "uint256" }
-        ]
-      }
+    "type": "event",
+    "name": "ExpenseAdded",
+    "inputs": [
+      { "name": "id", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "expname", "type": "string", "indexed": false, "internalType": "string" },
+      { "name": "amt", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "participantCount", "type": "uint8", "indexed": false, "internalType": "uint8" }
     ],
-    "stateMutability": "view"
+    "anonymous": false
   },
   {
-    "type": "function",
-    "name": "getPaymentRequest",
-    "inputs": [{ "name": "requestId", "type": "uint256" }],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple",
-        "components": [
-          { "name": "from", "type": "address" },
-          { "name": "to", "type": "address" },
-          { "name": "amount", "type": "uint256" },
-          { "name": "reason", "type": "string" },
-          { "name": "isPaid", "type": "bool" },
-          { "name": "timestamp", "type": "uint256" }
-        ]
-      }
+    "type": "event",
+    "name": "ParticipantPaid",
+    "inputs": [
+      { "name": "expenseId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "participant", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256" }
     ],
-    "stateMutability": "view"
+    "anonymous": false
   },
   {
-    "type": "function",
-    "name": "getPaymentRequestCount",
-    "inputs": [],
-    "outputs": [{ "name": "", "type": "uint256" }],
-    "stateMutability": "view"
+    "type": "event",
+    "name": "PaymentCompleted",
+    "inputs": [
+      { "name": "requestId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "from", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "to", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PaymentRequested",
+    "inputs": [
+      { "name": "requestId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "from", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "to", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StatusUpdated",
+    "inputs": [
+      { "name": "id", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "newStatus", "type": "uint8", "indexed": false, "internalType": "enum Storage.Status" }
+    ],
+    "anonymous": false
   }
 ];

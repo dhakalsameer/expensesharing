@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {Script} from "forge-std/Script.sol";
-import {Storage} from "../contract/Storage.sol";
-import {console} from "forge-std/console.sol";  // ← ADD THIS LINE
+import "forge-std/Script.sol";
+// Fix: Use correct relative path
+import "../contract/Storage.sol";
 
 contract DeployStorage is Script {
     function run() external {
@@ -13,8 +13,8 @@ contract DeployStorage is Script {
         
         Storage storageContract = new Storage();
         
-        console.log("Storage deployed to:", address(storageContract));
-        
         vm.stopBroadcast();
+        
+        console.log(" Storage contract deployed to:", address(storageContract));
     }
 }

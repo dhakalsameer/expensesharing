@@ -28,4 +28,4 @@ dist-ssr
 out/
 lib/
 broadcast/
-*.log
+*.lo

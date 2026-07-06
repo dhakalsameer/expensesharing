@@ -1,5 +1,3 @@
-// Main Expense Sharing App - NFT.Storage Version with Dynamic Participants
-
 import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { contractABI } from "./abi";
@@ -11,9 +9,8 @@ import "globalthis/auto";
 const CONTRACT_ADDRESS = "0x5e8013685a6fd02D54C500A8cDaf200Cf46cF7a0";
 const NFT_CONTRACT_ADDRESS = "0xB8B77bDfFb937714493eFB7F94801A07AA1e1a8a";
 const SEPOLIA_CHAIN_ID = "0xaa36a7";
-
-// this is storage where ntf is beieng stroed form nft.storage
-const NFT_STORAGE_TOKEN = "a51e2152.69296186cb8c49db991b66c5b4d63254";
+//nft ntf.storage
+const NFT_STORAGE_TOKEN = "69a92200.387c9765b6af4219bf2ee990ae39e7a1";
 const nftStorage = new NFTStorage({ token: NFT_STORAGE_TOKEN });
 
 // image for the nft
@@ -78,8 +75,6 @@ function App() {
   const [nftImageFile, setNftImageFile] = useState(null);
   const [selectedExpenseForNFT, setSelectedExpenseForNFT] = useState("");
   const [mintingNFT, setMintingNFT] = useState(false);
-
-  // ✅ FIX 1: State to track if NFT has been imported
   const [nftImported, setNftImported] = useState(false);
 
   // for the seepolia to be used
@@ -146,7 +141,8 @@ function App() {
       return url;
     } catch (error) {
       console.error("❌ Upload to NFT.Storage failed:", error);
-      throw error;
+      // ✅ FIX: Return placeholder instead of throwing
+      return PLACEHOLDER_IMAGE;
     }
   }, []);
 
@@ -162,7 +158,8 @@ function App() {
       return url;
     } catch (error) {
       console.error("❌ Metadata upload failed:", error);
-      throw error;
+      // ✅ FIX: Return placeholder instead of throwing
+      return PLACEHOLDER_IMAGE;
     }
   }, []);
 
@@ -373,7 +370,7 @@ function App() {
         }
         setAllRequests(requests);
 
-        // ✅ FIX 2: Only show pending requests where USER is the recipient
+        // Only show pending requests where USER is the recipient
         if (walletAddress) {
           const pendingList = [];
           for (let i = 0; i < requests.length; i++) {
@@ -386,9 +383,6 @@ function App() {
             }
           }
           setPendingRequests(pendingList);
-          console.log(
-            `✅ Found ${pendingList.length} pending requests for you`,
-          );
         }
       } catch (error) {
         console.log("ℹ️ Payment requests not available");
@@ -485,7 +479,7 @@ function App() {
     setNftImported(false);
   }, []);
 
-  // ✅ FIX 1: importing to mmetamask (NFT) - Can only import once
+  // importing to mmetamask (NFT)
   const importNFTToMetaMask = useCallback(async () => {
     if (!window.ethereum) {
       alert("Please install MetaMask");
@@ -551,7 +545,8 @@ function App() {
           imageUrl = await uploadToNFTStorage(nftImageFile);
           console.log("✅ Image uploaded to NFT.Storage:", imageUrl);
         } catch (uploadError) {
-          console.error("Image upload failed:", uploadError);
+          console.error("Image upload failed, using placeholder:", uploadError);
+          imageUrl = PLACEHOLDER_IMAGE;
         }
       }
       let participantList = "";
@@ -578,7 +573,11 @@ function App() {
         metadataUrl = await uploadMetadataToNFTStorage(metadata);
         console.log("✅ Metadata uploaded to NFT.Storage:", metadataUrl);
       } catch (uploadError) {
-        console.error("Metadata upload failed:", uploadError);
+        console.error(
+          "Metadata upload failed, using placeholder:",
+          uploadError,
+        );
+        metadataUrl = PLACEHOLDER_IMAGE;
       }
       setUploading(false);
       const tx = await nftContract.mintExpenseNFT(
@@ -736,8 +735,14 @@ function App() {
       alert("Expense Added Successfully!");
     } catch (error) {
       console.error("Failed to add expense:", error);
-      setError("Transaction failed: " + (error.reason || error.message));
-      alert("Transaction failed: " + (error.reason || error.message));
+      // ✅ FIX: Better error message for user rejection
+      if (error.code === "ACTION_REJECTED") {
+        setError("Transaction was rejected in MetaMask");
+        alert("You rejected the transaction in MetaMask");
+      } else {
+        setError("Transaction failed: " + (error.reason || error.message));
+        alert("Transaction failed: " + (error.reason || error.message));
+      }
     } finally {
       setLoading(false);
     }
@@ -759,13 +764,21 @@ function App() {
     loadUserNFTs,
   ]);
 
-  // Mark participant as paid
+  // ✅ FIX: Mark participant as paid with status check
   const markParticipantPaid = useCallback(
     async (expenseId, participantAddress) => {
       if (!contract || !isConnected) {
         alert("Please connect wallet first");
         return;
       }
+
+      // Check if expense is already paid
+      const expense = expenses.find((e) => e.id === expenseId);
+      if (expense && expense.status === 1) {
+        alert("⚠️ This expense is already marked as paid!");
+        return;
+      }
+
       try {
         setLoading(true);
         const tx = await contract.markParticipantPaid(
@@ -777,21 +790,33 @@ function App() {
         alert("✅ Participant marked as paid!");
       } catch (error) {
         console.error("Failed to mark participant as paid:", error);
-        alert("Failed: " + (error.reason || error.message));
+        if (error.message.includes("Expense not pending")) {
+          alert("⚠️ This expense is already paid or not pending!");
+        } else {
+          alert("Failed: " + (error.reason || error.message));
+        }
       } finally {
         setLoading(false);
       }
     },
-    [contract, isConnected, loadExpenses],
+    [contract, isConnected, loadExpenses, expenses],
   );
 
-  // ✅ FIX 3: Mark debtor as paid (when they pay you)
+  // ✅ FIX: Mark debtor as paid with status check
   const markDebtorAsPaid = useCallback(
     async (expenseId, debtorAddress) => {
       if (!contract || !isConnected) {
         alert("Please connect wallet first");
         return;
       }
+
+      // Check if expense is already paid
+      const expense = expenses.find((e) => e.id === expenseId);
+      if (expense && expense.status === 1) {
+        alert("⚠️ This expense is already marked as paid!");
+        return;
+      }
+
       try {
         setLoading(true);
         const tx = await contract.markParticipantPaid(expenseId, debtorAddress);
@@ -801,12 +826,16 @@ function App() {
         alert("✅ Debtor marked as paid!");
       } catch (error) {
         console.error("Failed to mark debtor as paid:", error);
-        alert("Failed: " + (error.reason || error.message));
+        if (error.message.includes("Expense not pending")) {
+          alert("⚠️ This expense is not pending or already paid!");
+        } else {
+          alert("Failed: " + (error.reason || error.message));
+        }
       } finally {
         setLoading(false);
       }
     },
-    [contract, isConnected, loadExpenses, loadPaymentRequests],
+    [contract, isConnected, loadExpenses, loadPaymentRequests, expenses],
   );
 
   // Request payment from payer for a specific expense
@@ -1468,7 +1497,6 @@ function App() {
                       <span className="text-red-600 font-bold">
                         {debtor.amount} ETH
                       </span>
-                      {/* ✅ FIX 3: Mark debtor as paid button */}
                       <button
                         onClick={() =>
                           markDebtorAsPaid(
@@ -1608,11 +1636,11 @@ function App() {
                                           Request Payer
                                         </button>
                                       )}
-                                    {/* Mark participant as paid - only for payer */}
+                                    {/* Mark participant as paid - only for payer and only if not paid */}
                                     {expense.payerAddress &&
                                       expense.payerAddress.toLowerCase() ===
                                         walletAddress?.toLowerCase() &&
-                                      !isPaid && (
+                                      expense.status !== 1 && (
                                         <button
                                           onClick={() =>
                                             markParticipantPaid(

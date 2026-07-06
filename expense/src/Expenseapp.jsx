@@ -7,7 +7,7 @@ import "globalthis/auto";
 
 // sepolia and nft contract address
 const CONTRACT_ADDRESS = "0x5e8013685a6fd02D54C500A8cDaf200Cf46cF7a0";
-const NFT_CONTRACT_ADDRESS = "0xB8B77bDfFb937714493eFB7F94801A07AA1e1a8a";
+const NFT_CONTRACT_ADDRESS = "0xB8B77bDfFb937714493eFgit B7F94801A07AA1e1a8a";
 const SEPOLIA_CHAIN_ID = "0xaa36a7";
 //nft ntf.storage
 const NFT_STORAGE_TOKEN = "69a92200.387c9765b6af4219bf2ee990ae39e7a1";

@@ -1,4 +1,3 @@
-// Main Expense Sharing App - NFT.Storage Version with Dynamic Participants
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";

@@ -72,6 +72,13 @@ function ExpenseApp() {
   const [mintingNFT, setMintingNFT] = useState(false);
   const [nftImported, setNftImported] = useState(false);
 
+  // ✅ NEW: Summary stats for dashboard
+  const [summaryStats, setSummaryStats] = useState({
+    pending: 0,
+    paid: 0,
+    received: 0,
+  });
+
   // for the seepolia to be used
   const switchToSepolia = async () => {
     try {
@@ -256,112 +263,145 @@ function ExpenseApp() {
     [walletAddress],
   );
 
-  // loading expenses
-  const loadExpenses = useCallback(async (contractInstance) => {
-    if (!contractInstance) return;
-    try {
-      setRefreshing(true);
-      const length = await contractInstance.getLength();
-      const totalCount = Number(length);
-      if (totalCount === 0) {
-        setExpenses([]);
-        setTotalExpenses(0);
-        setTotalAmount(0);
-        setPendingCount(0);
-        setBadDebtors([]);
-        setDataLoaded(true);
-        setRefreshing(false);
-        return;
-      }
-      const expenseList = [];
-      let totalAmt = 0;
+  // ✅ UPDATED: Calculate summary stats
+  const calculateSummaryStats = useCallback(
+    (expenseList) => {
       let pending = 0;
-      const debtors = [];
-      for (let i = 0; i < totalCount; i++) {
-        try {
-          const exp = await contractInstance.getExpense(i);
-          const amtEth = parseFloat(ethers.utils.formatEther(exp.amt));
-          totalAmt += amtEth;
-          const statusValue = Number(exp.status);
-          if (statusValue === 0) pending++;
-          let statusText = "⏳ Pending";
-          if (statusValue === 1) statusText = "✅ Paid";
-          else if (statusValue === 2) statusText = "❌ Rejected";
-          else if (statusValue === 3) statusText = "⚠️ Bad Debt";
-          // Get participants
-          let participants = [];
-          let participantNames = [];
-          try {
-            const [addresses, names] =
-              await contractInstance.getParticipants(i);
-            participants = addresses;
-            participantNames = names;
-          } catch (err) {
-            console.log("Could not fetch participants for expense", i);
-          }
-          // Check for bad debtors
-          if (statusValue === 3 || statusValue === 0) {
-            try {
-              const badDebtorsList = await contractInstance.getBadDebtors(i);
-              for (let j = 0; j < badDebtorsList.length; j++) {
-                const nameIndex = participants.indexOf(badDebtorsList[j]);
-                debtors.push({
-                  name:
-                    nameIndex >= 0
-                      ? participantNames[nameIndex] || `Participant ${j + 1}`
-                      : `Participant ${j + 1}`,
-                  address: badDebtorsList[j],
-                  amount: parseFloat(
-                    ethers.utils.formatEther(exp.shareamount || 0),
-                  ),
-                  expname: exp.expname || "Unknown",
-                  role: "Participant",
-                  expenseId: i, // ✅ Add expenseId to track which expense
-                });
-              }
-            } catch (err) {
-              console.log("Could not fetch bad debtors for expense", i);
-            }
-          }
-          const shareAmountEth = parseFloat(
-            ethers.utils.formatEther(exp.shareamount || 0),
-          );
-          expenseList.push({
-            id: i,
-            expname: exp.expname || "Unknown",
-            paidby: exp.paidby || "Unknown",
-            payerAddress: exp.payerAddress || "Unknown",
-            paddress: exp.paddress || "Unknown",
-            amt: amtEth,
-            shareamount: shareAmountEth,
-            status: statusValue,
-            statusText: statusText,
-            shareAmount:
-              participants.length > 0
-                ? (amtEth / (participants.length + 1)).toFixed(4)
-                : "0",
-            participantCount: participants.length,
-            participants: participants,
-            participantNames: participantNames,
-          });
-        } catch (err) {
-          console.error(`Error loading expense ${i}:`, err);
+      let paid = 0;
+      let received = 0;
+
+      expenseList.forEach((exp) => {
+        if (exp.status === 0) {
+          pending++;
+        } else if (exp.status === 1) {
+          paid++;
         }
+
+        // Check if current user is the payer (received payments)
+        if (
+          exp.payerAddress &&
+          exp.payerAddress.toLowerCase() === walletAddress?.toLowerCase()
+        ) {
+          received++;
+        }
+      });
+
+      setSummaryStats({ pending, paid, received });
+    },
+    [walletAddress],
+  );
+
+  // loading expenses
+  const loadExpenses = useCallback(
+    async (contractInstance) => {
+      if (!contractInstance) return;
+      try {
+        setRefreshing(true);
+        const length = await contractInstance.getLength();
+        const totalCount = Number(length);
+        if (totalCount === 0) {
+          setExpenses([]);
+          setTotalExpenses(0);
+          setTotalAmount(0);
+          setPendingCount(0);
+          setBadDebtors([]);
+          setDataLoaded(true);
+          setRefreshing(false);
+          calculateSummaryStats([]);
+          return;
+        }
+        const expenseList = [];
+        let totalAmt = 0;
+        let pending = 0;
+        const debtors = [];
+        for (let i = 0; i < totalCount; i++) {
+          try {
+            const exp = await contractInstance.getExpense(i);
+            const amtEth = parseFloat(ethers.utils.formatEther(exp.amt));
+            totalAmt += amtEth;
+            const statusValue = Number(exp.status);
+            if (statusValue === 0) pending++;
+            let statusText = "⏳ Pending";
+            if (statusValue === 1) statusText = "✅ Paid";
+            else if (statusValue === 2) statusText = "❌ Rejected";
+            else if (statusValue === 3) statusText = "⚠️ Bad Debt";
+            // Get participants
+            let participants = [];
+            let participantNames = [];
+            try {
+              const [addresses, names] =
+                await contractInstance.getParticipants(i);
+              participants = addresses;
+              participantNames = names;
+            } catch (err) {
+              console.log("Could not fetch participants for expense", i);
+            }
+            // Check for bad debtors
+            if (statusValue === 3 || statusValue === 0) {
+              try {
+                const badDebtorsList = await contractInstance.getBadDebtors(i);
+                for (let j = 0; j < badDebtorsList.length; j++) {
+                  const nameIndex = participants.indexOf(badDebtorsList[j]);
+                  debtors.push({
+                    name:
+                      nameIndex >= 0
+                        ? participantNames[nameIndex] || `Participant ${j + 1}`
+                        : `Participant ${j + 1}`,
+                    address: badDebtorsList[j],
+                    amount: parseFloat(
+                      ethers.utils.formatEther(exp.shareamount || 0),
+                    ),
+                    expname: exp.expname || "Unknown",
+                    role: "Participant",
+                    expenseId: i, // ✅ Add expenseId to track which expense
+                  });
+                }
+              } catch (err) {
+                console.log("Could not fetch bad debtors for expense", i);
+              }
+            }
+            const shareAmountEth = parseFloat(
+              ethers.utils.formatEther(exp.shareamount || 0),
+            );
+            expenseList.push({
+              id: i,
+              expname: exp.expname || "Unknown",
+              paidby: exp.paidby || "Unknown",
+              payerAddress: exp.payerAddress || "Unknown",
+              paddress: exp.paddress || "Unknown",
+              amt: amtEth,
+              shareamount: shareAmountEth,
+              status: statusValue,
+              statusText: statusText,
+              shareAmount:
+                participants.length > 0
+                  ? (amtEth / (participants.length + 1)).toFixed(4)
+                  : "0",
+              participantCount: participants.length,
+              participants: participants,
+              participantNames: participantNames,
+            });
+          } catch (err) {
+            console.error(`Error loading expense ${i}:`, err);
+          }
+        }
+        expenseList.reverse();
+        setExpenses(expenseList);
+        setTotalExpenses(expenseList.length);
+        setTotalAmount(totalAmt);
+        setPendingCount(pending);
+        setBadDebtors(debtors);
+        setDataLoaded(true);
+        calculateSummaryStats(expenseList);
+      } catch (error) {
+        console.error("Failed to load expenses:", error);
+        setDataLoaded(true);
+      } finally {
+        setRefreshing(false);
       }
-      expenseList.reverse();
-      setExpenses(expenseList);
-      setTotalExpenses(expenseList.length);
-      setTotalAmount(totalAmt);
-      setPendingCount(pending);
-      setBadDebtors(debtors);
-      setDataLoaded(true);
-    } catch (error) {
-      console.error("Failed to load expenses:", error);
-      setDataLoaded(true);
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
+    },
+    [calculateSummaryStats],
+  );
 
   // loading the pament state and other
   const loadPaymentRequests = useCallback(
@@ -479,7 +519,7 @@ function ExpenseApp() {
       setError("Failed to connect wallet: " + error.message);
       setIsLoading(false);
     }
-  }, [initEthers, loadPaymentRequests, loadUserNFTs]);
+  }, [initEthers, loadPaymentRequests, loadUserNFTs, loadExpenses]);
 
   // discconnect wallet
   const disconnectWallet = useCallback(() => {
@@ -504,6 +544,7 @@ function ExpenseApp() {
     setNftImageFile(null);
     setSelectedExpenseForNFT("");
     setNftImported(false);
+    setSummaryStats({ pending: 0, paid: 0, received: 0 });
   }, []);
 
   // importing to mmetamask (NFT)
@@ -1096,7 +1137,6 @@ function ExpenseApp() {
               </span>
             )}
           </div>
-
           {/* NFT Import Button */}
           {isConnected && isCorrectNetwork && (
             <div className="mb-4 p-4 bg-purple-50 rounded-xl border border-purple-200">
@@ -1209,6 +1249,29 @@ function ExpenseApp() {
             </span>
           </div>
         </div>
+        {/* ✅ NEW: Summary Cards - Pending, Paid, Received */}
+        {isConnected && isCorrectNetwork && (
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
+              <p className="text-yellow-600 text-sm font-medium">⏳ Pending</p>
+              <p className="text-2xl font-bold text-yellow-700">
+                {summaryStats.pending}
+              </p>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+              <p className="text-green-600 text-sm font-medium">✅ Paid</p>
+              <p className="text-2xl font-bold text-green-700">
+                {summaryStats.paid}
+              </p>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+              <p className="text-blue-600 text-sm font-medium">💰 Received</p>
+              <p className="text-2xl font-bold text-blue-700">
+                {summaryStats.received}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Main Content - Two Columns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

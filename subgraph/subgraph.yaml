@@ -1,0 +1,45 @@
+specVersion: 1.2.0
+description: ExpenseSharing indexer
+repository: https://github.com/dhakalsameer/expensesharing
+schema:
+  file: ./schema.graphql
+
+dataSources:
+  - kind: ethereum
+    name: Storage
+    network: sepolia
+    source:
+      address: "0xA486A5B2C0d6d7F268727F4373a46E356c5242CD"
+      abi: Storage
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - ExpenseAdded
+        - StatusUpdated
+        - ParticipantPaid
+        - PaymentRequested
+        - PaymentCompleted
+        - PaymentRefunded
+        - ExpensesReset
+      abis:
+        - name: Storage
+          file: ../contract/storage.sol
+      eventHandlers:
+        - event: ExpenseAdded(indexed uint256,string,uint256,uint8)
+          handler: handleExpenseAdded
+        - event: StatusUpdated(indexed uint256,(uint8))
+          handler: handleStatusUpdated
+        - event: ParticipantPaid(indexed uint256,indexed address,uint256)
+          handler: handleParticipantPaid
+        - event: PaymentRequested(indexed uint256,indexed address,indexed address,uint256)
+          handler: handlePaymentRequested
+        - event: PaymentCompleted(indexed uint256,indexed address,indexed address,uint256)
+          handler: handlePaymentCompleted
+        - event: PaymentRefunded(indexed uint256,indexed address,uint256)
+          handler: handlePaymentRefunded
+        - event: ExpensesReset()
+          handler: handleExpensesReset
+      file: ./mapping.ts

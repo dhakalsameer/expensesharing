@@ -3,10 +3,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { contractABI } from "./abi";
 import { nftABI } from "./NftABI";
+import { useExpensesFull, useRequestsByUser, useUserExpenses } from "./graphql/hooks";
 
 // sepolia and nft contract address
-const CONTRACT_ADDRESS = "0x8bf873134C810eF5b8D2fAa5df589F8E797963b5";
-const NFT_CONTRACT_ADDRESS = "0x9157333C772e9FB330af0f2D23Fe79c3Dc04851e";
+const CONTRACT_ADDRESS = "0xA486A5B2C0d6d7F268727F4373a46E356c5242CD";
+const NFT_CONTRACT_ADDRESS = "0xeB3a7f80b6D3961541F17623e08751eDC2d40986";
 const SEPOLIA_CHAIN_ID = "0xaa36a7";
 
 // image for the nft
@@ -14,6 +15,17 @@ const PLACEHOLDER_IMAGE =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%236C63FF'/%3E%3Ctext x='50%25' y='50%25' font-size='24' fill='white' text-anchor='middle' dominant-baseline='central'%3E💰 Expense NFT%3C/text%3E%3C/svg%3E";
 
 function App() {
+  // ─── GraphQL: toggle to use subgraph instead of on-chain RPC ───
+  // Set VITE_USE_GRAPHQL=true in .env and deploy a subgraph first.
+  // Then replace loadExpenses / loadPaymentRequests with these:
+  //
+  //   const { data, loading } = useExpensesFull(20);
+  //   const { data: reqData } = useRequestsByUser(walletAddress);
+  //
+  // See src/graphql/ for queries, hooks, and the subgraph/ folder
+  // for the deployment manifest.
+  const useGraphQL = import.meta.env.VITE_USE_GRAPHQL === "true";
+
   // for the wallet, here are the state of metawallet
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
@@ -260,6 +272,41 @@ function App() {
   // loading expenses
   const loadExpenses = useCallback(async (contractInstance) => {
     if (!contractInstance) return;
+
+    // ─── GraphQL branch: skip on-chain loop if subgraph is available ───
+    if (useGraphQL) {
+      try {
+        const res = await fetch(import.meta.env.VITE_SUBGRAPH_URL || "", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: `{ expenseAddeds(orderBy: id, orderDirection: desc) {
+              id expname amt participantCount
+              statuses: statusUpdateds(orderBy: blockNumber, orderDirection: desc, first: 1) { newStatus }
+              payments: participantPaids(orderBy: blockNumber, orderDirection: asc) { participant amount }
+            }}`,
+          }),
+        });
+        const json = await res.json();
+        if (json.data?.expenseAddeds) {
+          const list = json.data.expenseAddeds.map((e) => ({
+            id: parseInt(e.id),
+            expname: e.expname,
+            amt: parseFloat(e.amt) / 1e18,
+            status: e.statuses?.[0]?.newStatus === "paid" ? 1 : 0,
+          }));
+          setExpenses(list);
+          setTotalExpenses(list.length);
+          setDataLoaded(true);
+        }
+      } catch (err) {
+        console.error("GraphQL fetch failed, falling back to RPC:", err);
+      } finally {
+        setRefreshing(false);
+      }
+      return;
+    }
+
     try {
       setRefreshing(true);
       const length = await contractInstance.getLength();

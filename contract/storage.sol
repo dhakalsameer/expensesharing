@@ -2,12 +2,7 @@
 pragma solidity ^0.8.13;
 
 contract Storage {
-    enum Status {
-        pending,   // 0
-        paid,      // 1
-        rejected,  // 2
-        badDebt    // 3
-    }
+    enum Status { pending, paid, rejected, badDebt }
 
     struct Expense {
         string expname;
@@ -29,7 +24,7 @@ contract Storage {
         string reason;
         bool isPaid;
         uint256 timestamp;
-        uint256 expenseId;     // 0 = generic, >0 = linked to an expense
+        uint256 expenseId;
     }
 
     Expense[] public expenses;
@@ -38,9 +33,11 @@ contract Storage {
 
     event ExpenseAdded(uint256 indexed id, string expname, uint256 amt, uint8 participantCount);
     event StatusUpdated(uint256 indexed id, Status newStatus);
+    event ParticipantPaid(uint256 indexed expenseId, address indexed participant, uint256 amount);
     event PaymentRequested(uint256 indexed requestId, address indexed from, address indexed to, uint256 amount);
     event PaymentCompleted(uint256 indexed requestId, address indexed from, address indexed to, uint256 amount);
-    event ParticipantPaid(uint256 indexed expenseId, address indexed participant, uint256 amount);
+    event PaymentRefunded(uint256 indexed requestId, address indexed debtor, uint256 refundAmount);
+    event ExpensesReset();
 
     function addExpense(
         string memory _expname,
@@ -52,14 +49,15 @@ contract Storage {
         uint256 _amt,
         Status _status
     ) public {
-        require(_participants.length > 0, "Need at least one participant");
-        require(_participants.length == _participantNames.length, "Arrays length mismatch");
+        uint256 pLen = _participants.length;
+        require(pLen > 0, "Need at least one participant");
+        require(pLen == _participantNames.length, "Arrays length mismatch");
         require(_payerAddress != address(0), "Invalid payer address");
-        for (uint256 i; i < _participants.length; i++) {
+        for (uint256 i; i < pLen; i++) {
             require(_participants[i] != address(0), "Invalid participant address");
         }
 
-        uint256 shareAmount = _amt / (_participants.length + 1);
+        uint256 shareAmount = _amt / (pLen + 1);
 
         Expense storage newExpense = expenses.push();
         newExpense.expname = _expname;
@@ -70,12 +68,12 @@ contract Storage {
         newExpense.shareamount = shareAmount;
         newExpense.status = _status;
 
-        for (uint256 i; i < _participants.length; i++) {
+        for (uint256 i; i < pLen; i++) {
             newExpense.participants.push(_participants[i]);
             newExpense.participantNames.push(_participantNames[i]);
         }
 
-        emit ExpenseAdded(expenses.length, _expname, _amt, uint8(_participants.length));
+        emit ExpenseAdded(expenses.length - 1, _expname, _amt, uint8(pLen));
     }
 
     function getExpense(uint256 _id) public view returns (
@@ -109,32 +107,33 @@ contract Storage {
         return (expenses[_id].participants, expenses[_id].participantNames);
     }
 
+    function _isParticipant(Expense storage exp, address who) private view returns (bool) {
+        uint256 len = exp.participants.length;
+        for (uint256 i; i < len; i++) {
+            if (exp.participants[i] == who) return true;
+        }
+        return false;
+    }
+
     function markParticipantPaid(uint256 _id, address _participant) public {
         require(_id < expenses.length, "Expense not found");
         Expense storage exp = expenses[_id];
         require(exp.status == Status.pending || exp.status == Status.badDebt, "Expense not pending");
-
-        bool found;
-        for (uint256 i; i < exp.participants.length; i++) {
-            if (exp.participants[i] == _participant) {
-                found = true;
-                break;
-            }
-        }
-        require(found, "Participant not in this expense");
+        require(_isParticipant(exp, _participant), "Participant not in this expense");
         require(!exp.hasPaid[_participant], "Already paid");
 
         exp.hasPaid[_participant] = true;
         emit ParticipantPaid(_id, _participant, exp.shareamount);
 
-        if (_allParticipantsPaid(exp) && exp.status == Status.pending) {
+        if (exp.status == Status.pending && _allParticipantsPaid(exp)) {
             exp.status = Status.paid;
             emit StatusUpdated(_id, Status.paid);
         }
     }
 
     function _allParticipantsPaid(Expense storage exp) private view returns (bool) {
-        for (uint256 i; i < exp.participants.length; i++) {
+        uint256 len = exp.participants.length;
+        for (uint256 i; i < len; i++) {
             if (!exp.hasPaid[exp.participants[i]]) return false;
         }
         return true;
@@ -145,7 +144,8 @@ contract Storage {
         Expense storage exp = expenses[_id];
         address[] memory badDebtors = new address[](exp.participants.length);
         uint256 count;
-        for (uint256 i; i < exp.participants.length; i++) {
+        uint256 len = exp.participants.length;
+        for (uint256 i; i < len; i++) {
             if (!exp.hasPaid[exp.participants[i]]) {
                 badDebtors[count++] = exp.participants[i];
             }
@@ -158,14 +158,7 @@ contract Storage {
         require(_expenseId < expenses.length, "Expense not found");
         Expense storage exp = expenses[_expenseId];
 
-        bool isParticipant;
-        for (uint256 i; i < exp.participants.length; i++) {
-            if (exp.participants[i] == msg.sender) {
-                isParticipant = true;
-                break;
-            }
-        }
-        require(isParticipant, "Not a participant");
+        require(_isParticipant(exp, msg.sender), "Not a participant");
         require(!exp.hasPaid[msg.sender], "Already paid");
         require(exp.status != Status.paid, "Expense already paid");
 
@@ -190,11 +183,11 @@ contract Storage {
 
     function getStatus(uint256 _id) public view returns (string memory) {
         require(_id < expenses.length, "Expense not found");
-        Status currentStatus = expenses[_id].status;
-        if (currentStatus == Status.pending) return "your expense is pending";
-        if (currentStatus == Status.paid) return "your expense is paid";
-        if (currentStatus == Status.rejected) return "your expense is rejected";
-        if (currentStatus == Status.badDebt) return "your expense is bad debt";
+        Status s = expenses[_id].status;
+        if (s == Status.pending) return "your expense is pending";
+        if (s == Status.paid) return "your expense is paid";
+        if (s == Status.rejected) return "your expense is rejected";
+        if (s == Status.badDebt) return "your expense is bad debt";
         return "Unknown status";
     }
 
@@ -211,6 +204,7 @@ contract Storage {
 
     function resetexp() public {
         delete expenses;
+        emit ExpensesReset();
     }
 
     function requestPayment(address to, uint256 amount, string memory reason) public returns (uint256) {
@@ -225,7 +219,7 @@ contract Storage {
             reason: reason,
             isPaid: false,
             timestamp: block.timestamp,
-            expenseId: type(uint256).max  // sentinel: not linked to any expense
+            expenseId: type(uint256).max
         }));
 
         uint256 requestId = paymentRequests.length - 1;
@@ -233,6 +227,28 @@ contract Storage {
 
         emit PaymentRequested(requestId, msg.sender, to, amount);
         return requestId;
+    }
+
+    function _linkPaymentToExpense(PaymentRequest storage request) private {
+        Expense storage exp = expenses[request.expenseId];
+        exp.hasPaid[request.from] = true;
+        emit ParticipantPaid(request.expenseId, request.from, request.amount);
+        if (exp.status == Status.pending && _allParticipantsPaid(exp)) {
+            exp.status = Status.paid;
+            emit StatusUpdated(request.expenseId, Status.paid);
+        }
+    }
+
+    function _removePending(address debtor, uint256 requestId) private {
+        uint256[] storage pending = pendingRequests[debtor];
+        uint256 len = pending.length;
+        for (uint256 i; i < len; i++) {
+            if (pending[i] == requestId) {
+                pending[i] = pending[len - 1];
+                pending.pop();
+                break;
+            }
+        }
     }
 
     function payRequest(uint256 requestId) public payable {
@@ -244,32 +260,22 @@ contract Storage {
 
         request.isPaid = true;
 
-        (bool sent, ) = payable(request.from).call{value: request.amount}("");
+        (bool sent, ) = request.from.call{value: request.amount}("");
         require(sent, "Failed to send ETH");
 
         if (msg.value > request.amount) {
-            (bool refunded, ) = payable(msg.sender).call{value: msg.value - request.amount}("");
+            uint256 refund;
+            unchecked { refund = msg.value - request.amount; }
+            (bool refunded, ) = msg.sender.call{value: refund}("");
             require(refunded, "Refund failed");
+            emit PaymentRefunded(requestId, msg.sender, refund);
         }
 
         if (request.expenseId != type(uint256).max) {
-            Expense storage exp = expenses[request.expenseId];
-            exp.hasPaid[request.from] = true;
-            emit ParticipantPaid(request.expenseId, request.from, request.amount);
-            if (_allParticipantsPaid(exp) && exp.status == Status.pending) {
-                exp.status = Status.paid;
-                emit StatusUpdated(request.expenseId, Status.paid);
-            }
+            _linkPaymentToExpense(request);
         }
 
-        uint256[] storage pending = pendingRequests[msg.sender];
-        for (uint256 i; i < pending.length; i++) {
-            if (pending[i] == requestId) {
-                pending[i] = pending[pending.length - 1];
-                pending.pop();
-                break;
-            }
-        }
+        _removePending(msg.sender, requestId);
         emit PaymentCompleted(requestId, request.from, request.to, request.amount);
     }
 

@@ -2,7 +2,7 @@ import { ApolloClient, InMemoryCache } from "@apollo/client";
 
 const SUBGRAPH_URL =
   import.meta.env.VITE_SUBGRAPH_URL ||
-  "https://api.studio.thegraph.com/query/1756757/expensesharing/v0.0.1";
+  "https://api.studio.thegraph.com/query/1756757/expensesharing/v0.0.2";
 
 const client = new ApolloClient({
   uri: SUBGRAPH_URL,

@@ -7,10 +7,10 @@ import {Storage} from "../contract/storage.sol";
 contract StorageTest is Test {
     Storage public store;
 
-    address payer  = address(0x100);
-    address alice  = address(0x1);
-    address bob    = address(0x2);
-    address carol  = address(0x3);
+    address payer = address(0x100);
+    address alice = address(0x1);
+    address bob = address(0x2);
+    address carol = address(0x3);
 
     function setUp() public {
         store = new Storage();
@@ -26,9 +26,16 @@ contract StorageTest is Test {
         address[] memory participants = new address[](count);
         string[] memory names = new string[](count);
         for (uint256 i; i < count; i++) {
-            if (i == 0)      { participants[i] = alice; names[i] = "Alice"; }
-            else if (i == 1) { participants[i] = bob;   names[i] = "Bob";   }
-            else             { participants[i] = carol; names[i] = "Carol"; }
+            if (i == 0) {
+                participants[i] = alice;
+                names[i] = "Alice";
+            } else if (i == 1) {
+                participants[i] = bob;
+                names[i] = "Bob";
+            } else {
+                participants[i] = carol;
+                names[i] = "Carol";
+            }
         }
         store.addExpense("Dinner", "Payer", payer, participants, names, "Place", amt, Storage.Status.pending);
         return store.getLength() - 1;
@@ -44,8 +51,17 @@ contract StorageTest is Test {
         uint256 id = _addDefaultExpense();
         assertEq(store.getLength(), 1);
 
-        (string memory n, string memory pb, address pa, string memory addr, uint256 amt,
-         uint256 share, Storage.Status st, address[] memory parts, string[] memory pn) = store.getExpense(id);
+        (
+            string memory n,
+            string memory pb,
+            address pa,
+            string memory addr,
+            uint256 amt,
+            uint256 share,
+            Storage.Status st,
+            address[] memory parts,
+            string[] memory pn
+        ) = store.getExpense(id);
         assertEq(n, "Dinner");
         assertEq(pb, "Payer");
         assertEq(pa, payer);
@@ -66,7 +82,8 @@ contract StorageTest is Test {
 
     function test_RevertWhen_AddExpenseArraysMismatch() public {
         address[] memory p = new address[](2);
-        p[0] = alice; p[1] = bob;
+        p[0] = alice;
+        p[1] = bob;
         string[] memory n = new string[](1);
         n[0] = "Alice";
         vm.expectRevert("Arrays length mismatch");
@@ -114,7 +131,7 @@ contract StorageTest is Test {
     }
 
     function test_GetShareAmount() public {
-        _addExpense(6 ether, 2);   // 3 people total → 2 ether each
+        _addExpense(6 ether, 2); // 3 people total → 2 ether each
         assertEq(store.getShareAmount(0), 2 ether);
     }
 
@@ -153,7 +170,7 @@ contract StorageTest is Test {
         vm.prank(payer);
         store.markParticipantPaid(0, carol);
 
-        (, , , , , , Storage.Status st, , ) = store.getExpense(0);
+        (,,,,,, Storage.Status st,,) = store.getExpense(0);
         assertEq(uint8(st), 1); // paid
     }
 
@@ -169,7 +186,7 @@ contract StorageTest is Test {
         store.markParticipantPaid(0, carol);
 
         // status stays badDebt (3), contract only auto-transitions from pending
-        (, , , , , , Storage.Status st, , ) = store.getExpense(0);
+        (,,,,,, Storage.Status st,,) = store.getExpense(0);
         assertEq(uint8(st), 3);
     }
 
@@ -364,7 +381,7 @@ contract StorageTest is Test {
         store.payRequest{value: 1 ether}(2);
 
         // all paid → status should be paid
-        (, , , , , , Storage.Status st, , ) = store.getExpense(0);
+        (,,,,,, Storage.Status st,,) = store.getExpense(0);
         assertEq(uint8(st), 1);
     }
 
@@ -474,8 +491,8 @@ contract StorageTest is Test {
     // ─── Multiple Expenses ─────────────────────────────────────
 
     function test_MultipleExpenses() public {
-        _addExpense(4 ether, 3);  // id 0
-        _addExpense(2 ether, 1);  // id 1
+        _addExpense(4 ether, 3); // id 0
+        _addExpense(2 ether, 1); // id 1
 
         assertEq(store.getLength(), 2);
         assertEq(store.getShareAmount(0), 1 ether);
@@ -487,14 +504,14 @@ contract StorageTest is Test {
     function test_StatusTransition_PendingToRejected() public {
         _addDefaultExpense();
         store.updateStatus(0, Storage.Status.rejected);
-        (, , , , , , Storage.Status st1, , ) = store.getExpense(0);
+        (,,,,,, Storage.Status st1,,) = store.getExpense(0);
         assertEq(uint8(st1), 2);
     }
 
     function test_StatusTransition_PendingToBadDebt() public {
         _addDefaultExpense();
         store.updateStatus(0, Storage.Status.badDebt);
-        (, , , , , , Storage.Status st2, , ) = store.getExpense(0);
+        (,,,,,, Storage.Status st2,,) = store.getExpense(0);
         assertEq(uint8(st2), 3);
     }
 }

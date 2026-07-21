@@ -14,36 +14,32 @@ contract ExpenseNFT is ERC721, ERC721URIStorage, ERC721Pausable, Ownable, ERC721
     mapping(uint256 => uint256) public expenseToNFT;
     mapping(uint256 => address) public nftToExpensePayer;
     mapping(address => uint256[]) public userNFTs;
-    
+
     event ExpenseNFTMinted(address indexed to, uint256 tokenId, uint256 expenseId, string expname);
 
     // REMOVED constructor argument - uses msg.sender as owner
-    constructor() 
-        ERC721("Expense Receipt NFT", "ERNFT")
-        Ownable(msg.sender)
-    {}
+    constructor() ERC721("Expense Receipt NFT", "ERNFT") Ownable(msg.sender) {}
 
-    function mintExpenseNFT(
-        address to,
-        string memory uri,
-        uint256 expenseId,
-        string memory expname
-    ) public onlyOwner returns (uint256) {
+    function mintExpenseNFT(address to, string memory uri, uint256 expenseId, string memory expname)
+        public
+        onlyOwner
+        returns (uint256)
+    {
         require(to != address(0), "Invalid recipient");
         require(bytes(uri).length > 0, "Token URI required");
-        
+
         uint256 tokenId = _tokenIds;
         _tokenIds++;
-        
+
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, uri);
-        
+
         expenseToNFT[expenseId] = tokenId;
         nftToExpensePayer[tokenId] = to;
         userNFTs[to].push(tokenId);
 
         emit ExpenseNFTMinted(to, tokenId, expenseId, expname);
-        
+
         return tokenId;
     }
 
@@ -95,21 +91,11 @@ contract ExpenseNFT is ERC721, ERC721URIStorage, ERC721Pausable, Ownable, ERC721
         return super._update(to, tokenId, auth);
     }
 
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        override(ERC721, ERC721URIStorage)
-        returns (string memory)
-    {
+    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
         return super.tokenURI(tokenId);
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721, ERC721URIStorage)
-        returns (bool)
-    {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }

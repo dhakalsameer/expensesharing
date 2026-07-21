@@ -8,9 +8,9 @@ contract ScenarioTest is Test {
     Storage public store;
 
     address payer = address(0x100);
-    address alice  = address(0x101);
-    address bob    = address(0x102);
-    address carol  = address(0x103);
+    address alice = address(0x101);
+    address bob = address(0x102);
+    address carol = address(0x103);
 
     function setUp() public {
         store = new Storage();
@@ -37,14 +37,7 @@ contract ScenarioTest is Test {
 
         vm.startPrank(payer);
         store.addExpense(
-            "Team Dinner",
-            "Payer",
-            payer,
-            participants,
-            names,
-            "Pizza Place",
-            12 ether,
-            Storage.Status.pending
+            "Team Dinner", "Payer", payer, participants, names, "Pizza Place", 12 ether, Storage.Status.pending
         );
         vm.stopPrank();
 
@@ -66,8 +59,8 @@ contract ScenarioTest is Test {
         assertEq(paidby, "Payer");
         assertEq(payerAddr, payer);
         assertEq(amt, 12 ether);
-        assertEq(shareamount, 3 ether);  // 12 / (3 participants + 1 payer) = 3
-        assertEq(uint8(status), 0);       // pending
+        assertEq(shareamount, 3 ether); // 12 / (3 participants + 1 payer) = 3
+        assertEq(uint8(status), 0); // pending
         assertEq(parts.length, 3);
 
         // ---------- Step 3: Alice marks herself as paid ----------
@@ -76,7 +69,7 @@ contract ScenarioTest is Test {
 
         // Verify partial payment
         address[] memory debtors = store.getBadDebtors(0);
-        assertEq(debtors.length, 2);  // Bob and Carol still owe
+        assertEq(debtors.length, 2); // Bob and Carol still owe
         assertEq(debtors[0], bob);
         assertEq(debtors[1], carol);
 
@@ -109,8 +102,8 @@ contract ScenarioTest is Test {
         vm.prank(payer);
         store.updateStatus(0, Storage.Status.badDebt);
 
-        (, , , , , , status, , ) = store.getExpense(0);
-        assertEq(uint8(status), 3);  // badDebt
+        (,,,,,, status,,) = store.getExpense(0);
+        assertEq(uint8(status), 3); // badDebt
 
         // ---------- Step 8: Carol pays payer directly (not via request) ----------
         uint256 payerBalanceBefore = address(payer).balance;
@@ -128,7 +121,7 @@ contract ScenarioTest is Test {
         assertEq(finalDebtors.length, 0);
 
         // Status stays badDebt (contract doesn't auto-transition from badDebt → paid)
-        (, , , , , , status, , ) = store.getExpense(0);
-        assertEq(uint8(status), 3);  // badDebt (contract only auto-marks paid when status is pending)
+        (,,,,,, status,,) = store.getExpense(0);
+        assertEq(uint8(status), 3); // badDebt (contract only auto-marks paid when status is pending)
     }
 }

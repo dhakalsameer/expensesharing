@@ -19,7 +19,7 @@ const AppContent = () => {
         <div className="bg-gray-800 text-white p-4 flex justify-between items-center">
           <div>
             <span className="font-semibold">👋 Welcome, {user.name}!</span>
-            <span className="ml-4F text-sm text-gray-400">({user.email})</span>
+            <span className="ml-4 text-sm text-gray-400">({user.email})</span>
           </div>
           <button
             onClick={logout}

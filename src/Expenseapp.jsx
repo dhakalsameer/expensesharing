@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { contractABI } from "./abi";
 import { nftABI } from "./NftABI";
-import { useExpensesFull, useRequestsByUser, useUserExpenses } from "./graphql/hooks";
+
 
 // sepolia and nft contract address
 const CONTRACT_ADDRESS = "0xA486A5B2C0d6d7F268727F4373a46E356c5242CD";

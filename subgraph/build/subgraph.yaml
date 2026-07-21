@@ -2,8 +2,7 @@ specVersion: 1.2.0
 description: ExpenseSharing indexer
 repository: https://github.com/dhakalsameer/expensesharing
 schema:
-  file: ./schema.graphql
-
+  file: schema.graphql
 dataSources:
   - kind: ethereum
     name: Storage
@@ -26,7 +25,7 @@ dataSources:
         - ExpensesReset
       abis:
         - name: Storage
-          file: ./Storage.json
+          file: Storage/Storage.json
       eventHandlers:
         - event: ExpenseAdded(indexed uint256,string,uint256,uint8)
           handler: handleExpenseAdded
@@ -40,4 +39,4 @@ dataSources:
           handler: handlePaymentCompleted
         - event: PaymentRefunded(indexed uint256,indexed address,uint256)
           handler: handlePaymentRefunded
-      file: ./mapping.ts
+      file: Storage/Storage.wasm

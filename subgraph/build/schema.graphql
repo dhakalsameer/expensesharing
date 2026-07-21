@@ -1,0 +1,68 @@
+type ExpenseAdded @entity(immutable: true) {
+  id: ID!
+  expenseId: BigInt!
+  expname: String!
+  amt: BigInt!
+  participantCount: Int!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type StatusUpdated @entity(immutable: true) {
+  id: ID!
+  expense: ExpenseAdded!
+  newStatus: String!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ParticipantPaid @entity(immutable: true) {
+  id: ID!
+  expense: ExpenseAdded!
+  participant: Bytes!
+  amount: BigInt!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PaymentRequested @entity(immutable: true) {
+  id: ID!
+  requestId: BigInt!
+  from: Bytes!
+  to: Bytes!
+  amount: BigInt!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PaymentCompleted @entity(immutable: true) {
+  id: ID!
+  requestId: BigInt!
+  from: Bytes!
+  to: Bytes!
+  amount: BigInt!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PaymentRefunded @entity(immutable: true) {
+  id: ID!
+  requestId: BigInt!
+  debtor: Bytes!
+  refundAmount: BigInt!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ExpensesReset @entity(immutable: true) {
+  id: ID!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}

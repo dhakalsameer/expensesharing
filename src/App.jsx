@@ -8,7 +8,7 @@ import {
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import ExpenseApp from "./ExpenseApp";
+import ExpenseApp from "./Expenseapp";
 import PrivateRoute from "./guard/AuthGuard";
 const AppContent = () => {
   const { user, logout } = useAuth();

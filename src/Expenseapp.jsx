@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { contractABI } from "./abi";
-import { nftABI } from "./nftABI";
+import { nftABI } from "./NftABI";
 
 // sepolia and nft contract address
 const CONTRACT_ADDRESS = "0x5e8013685a6fd02D54C500A8cDaf200Cf46cF7a0";
@@ -13,7 +12,7 @@ const SEPOLIA_CHAIN_ID = "0xaa36a7";
 const PLACEHOLDER_IMAGE =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%236C63FF'/%3E%3Ctext x='50%25' y='50%25' font-size='24' fill='white' text-anchor='middle' dominant-baseline='central'%3E💰 Expense NFT%3C/text%3E%3C/svg%3E";
 
-function App() {
+function ExpenseApp() {
   // for the wallet, here are the state of metawallet
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
@@ -73,6 +72,14 @@ function App() {
   const [mintingNFT, setMintingNFT] = useState(false);
   const [nftImported, setNftImported] = useState(false);
 
+  //status for pay status with add of payment due (that is to pay to other)
+  const [summaryStats, setSummaryStats] = useState({
+    pending: 0,
+    paid: 0,
+    received: 0,
+    paymentDue: 0,
+  });
+
   // for the seepolia to be used
   const switchToSepolia = async () => {
     try {
@@ -128,9 +135,16 @@ function App() {
     }
   }, []);
 
-  // ✅ NEW: Upload file using Pinata
+  // from here Uploading file using Pinata
   const uploadToPinata = useCallback(async (file) => {
     try {
+      const jwt = import.meta.env.VITE_PINATA_JWT;
+
+      if (!jwt) {
+        console.error("❌ Pinata JWT is missing! Check your .env file");
+        return PLACEHOLDER_IMAGE;
+      }
+
       const formData = new FormData();
       formData.append("file", file);
 
@@ -139,7 +153,7 @@ function App() {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${process.env.REACT_APP_PINATA_JWT}`,
+            Authorization: `Bearer ${jwt}`,
           },
           body: formData,
         },
@@ -147,29 +161,39 @@ function App() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("Pinata Upload Error:", errorData);
         throw new Error(errorData.error || "Upload failed");
       }
 
       const data = await response.json();
       const url = `https://gateway.pinata.cloud/ipfs/${data.IpfsHash}`;
-      console.log("✅ File uploaded to Pinata:", url);
+      console.log("Congratulation! File uploaded to Pinata:", url);
       return url;
     } catch (error) {
-      console.error("❌ Upload to Pinata failed:", error);
+      console.error("Sorry Upload to Pinata failed:", error);
       return PLACEHOLDER_IMAGE;
     }
   }, []);
 
-  // ✅ NEW: Upload metadata using Pinata
+  //storing on inata
   const uploadMetadataToPinata = useCallback(async (metadata) => {
     try {
+      const jwt = import.meta.env.VITE_PINATA_JWT;
+
+      if (!jwt) {
+        console.error("❌ Pinata JWT is missing! Check your .env file");
+        throw new Error(
+          "Pinata JWT is missing. Please add VITE_PINATA_JWT to your .env file",
+        );
+      }
+
       const response = await fetch(
         "https://api.pinata.cloud/pinning/pinJSONToIPFS",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.REACT_APP_PINATA_JWT}`,
+            Authorization: `Bearer ${jwt}`,
           },
           body: JSON.stringify(metadata),
         },
@@ -177,7 +201,15 @@ function App() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Metadata upload failed");
+        console.error("Pinata Error Response:", errorData);
+
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(
+            "Invalid Pinata JWT. Please check your token and permissions.",
+          );
+        } else {
+          throw new Error(errorData.error || "Metadata upload failed");
+        }
       }
 
       const data = await response.json();
@@ -186,7 +218,7 @@ function App() {
       return url;
     } catch (error) {
       console.error("❌ Metadata upload failed:", error);
-      return PLACEHOLDER_IMAGE;
+      throw error;
     }
   }, []);
 
@@ -257,112 +289,159 @@ function App() {
     [walletAddress],
   );
 
-  // loading expenses
-  const loadExpenses = useCallback(async (contractInstance) => {
-    if (!contractInstance) return;
-    try {
-      setRefreshing(true);
-      const length = await contractInstance.getLength();
-      const totalCount = Number(length);
-      if (totalCount === 0) {
-        setExpenses([]);
-        setTotalExpenses(0);
-        setTotalAmount(0);
-        setPendingCount(0);
-        setBadDebtors([]);
-        setDataLoaded(true);
-        setRefreshing(false);
-        return;
-      }
-      const expenseList = [];
-      let totalAmt = 0;
+  //  Calculate summary stats wfor Payment Due (that i have to pay)
+  const calculateSummaryStats = useCallback(
+    (expenseList) => {
       let pending = 0;
-      const debtors = [];
-      for (let i = 0; i < totalCount; i++) {
-        try {
-          const exp = await contractInstance.getExpense(i);
-          const amtEth = parseFloat(ethers.utils.formatEther(exp.amt));
-          totalAmt += amtEth;
-          const statusValue = Number(exp.status);
-          if (statusValue === 0) pending++;
-          let statusText = "⏳ Pending";
-          if (statusValue === 1) statusText = "✅ Paid";
-          else if (statusValue === 2) statusText = "❌ Rejected";
-          else if (statusValue === 3) statusText = "⚠️ Bad Debt";
-          // Get participants
-          let participants = [];
-          let participantNames = [];
-          try {
-            const [addresses, names] =
-              await contractInstance.getParticipants(i);
-            participants = addresses;
-            participantNames = names;
-          } catch (err) {
-            console.log("Could not fetch participants for expense", i);
-          }
-          // Check for bad debtors
-          if (statusValue === 3 || statusValue === 0) {
-            try {
-              const badDebtorsList = await contractInstance.getBadDebtors(i);
-              for (let j = 0; j < badDebtorsList.length; j++) {
-                const nameIndex = participants.indexOf(badDebtorsList[j]);
-                debtors.push({
-                  name:
-                    nameIndex >= 0
-                      ? participantNames[nameIndex] || `Participant ${j + 1}`
-                      : `Participant ${j + 1}`,
-                  address: badDebtorsList[j],
-                  amount: parseFloat(
-                    ethers.utils.formatEther(exp.shareamount || 0),
-                  ),
-                  expname: exp.expname || "Unknown",
-                  role: "Participant",
-                  expenseId: i, // ✅ Add expenseId to track which expense
-                });
-              }
-            } catch (err) {
-              console.log("Could not fetch bad debtors for expense", i);
-            }
-          }
-          const shareAmountEth = parseFloat(
-            ethers.utils.formatEther(exp.shareamount || 0),
-          );
-          expenseList.push({
-            id: i,
-            expname: exp.expname || "Unknown",
-            paidby: exp.paidby || "Unknown",
-            payerAddress: exp.payerAddress || "Unknown",
-            paddress: exp.paddress || "Unknown",
-            amt: amtEth,
-            shareamount: shareAmountEth,
-            status: statusValue,
-            statusText: statusText,
-            shareAmount:
-              participants.length > 0
-                ? (amtEth / (participants.length + 1)).toFixed(4)
-                : "0",
-            participantCount: participants.length,
-            participants: participants,
-            participantNames: participantNames,
-          });
-        } catch (err) {
-          console.error(`Error loading expense ${i}:`, err);
+      let paid = 0;
+      let received = 0;
+      let paymentDue = 0;
+
+      expenseList.forEach((exp) => {
+        if (exp.status === 0) {
+          pending++;
+        } else if (exp.status === 1) {
+          paid++;
         }
+        // Check if current user is the payer (received payments)
+        if (
+          exp.payerAddress &&
+          exp.payerAddress.toLowerCase() === walletAddress?.toLowerCase()
+        ) {
+          received++;
+        }
+
+        // Check if current user is a participant who owes money (payment due)
+        if (exp.status === 0 || exp.status === 3) {
+          const isParticipant = exp.participants?.some(
+            (addr) => addr.toLowerCase() === walletAddress?.toLowerCase(),
+          );
+          const isPayer =
+            exp.payerAddress?.toLowerCase() === walletAddress?.toLowerCase();
+
+          // User owes money if they're a participant but not the payer
+          if (isParticipant && !isPayer) {
+            paymentDue++;
+          }
+        }
+      });
+
+      setSummaryStats({ pending, paid, received, paymentDue });
+    },
+    [walletAddress],
+  );
+
+  // loading expenses
+  const loadExpenses = useCallback(
+    async (contractInstance) => {
+      if (!contractInstance) return;
+      try {
+        setRefreshing(true);
+        const length = await contractInstance.getLength();
+        const totalCount = Number(length);
+        if (totalCount === 0) {
+          setExpenses([]);
+          setTotalExpenses(0);
+          setTotalAmount(0);
+          setPendingCount(0);
+          setBadDebtors([]);
+          setDataLoaded(true);
+          setRefreshing(false);
+          calculateSummaryStats([]);
+          return;
+        }
+        const expenseList = [];
+        let totalAmt = 0;
+        let pending = 0;
+        const debtors = [];
+        for (let i = 0; i < totalCount; i++) {
+          try {
+            const exp = await contractInstance.getExpense(i);
+            const amtEth = parseFloat(ethers.utils.formatEther(exp.amt));
+            totalAmt += amtEth;
+            const statusValue = Number(exp.status);
+            if (statusValue === 0) pending++;
+            let statusText = "⏳ Pending";
+            if (statusValue === 1) statusText = "✅ Paid";
+            else if (statusValue === 2) statusText = "❌ Rejected";
+            else if (statusValue === 3) statusText = "⚠️ Bad Debt";
+            // Get participants
+            let participants = [];
+            let participantNames = [];
+            try {
+              const [addresses, names] =
+                await contractInstance.getParticipants(i);
+              participants = addresses;
+              participantNames = names;
+            } catch (err) {
+              console.log("Could not fetch participants for expense", i);
+            }
+            // Check for bad debtors
+            if (statusValue === 3 || statusValue === 0) {
+              try {
+                const badDebtorsList = await contractInstance.getBadDebtors(i);
+                for (let j = 0; j < badDebtorsList.length; j++) {
+                  const nameIndex = participants.indexOf(badDebtorsList[j]);
+                  debtors.push({
+                    name:
+                      nameIndex >= 0
+                        ? participantNames[nameIndex] || `Participant ${j + 1}`
+                        : `Participant ${j + 1}`,
+                    address: badDebtorsList[j],
+                    amount: parseFloat(
+                      ethers.utils.formatEther(exp.shareamount || 0),
+                    ),
+                    expname: exp.expname || "Unknown",
+                    role: "Participant",
+                    expenseId: i, // ✅ Add expenseId to track which expense
+                  });
+                }
+              } catch (err) {
+                console.log("Could not fetch bad debtors for expense", i);
+              }
+            }
+            const shareAmountEth = parseFloat(
+              ethers.utils.formatEther(exp.shareamount || 0),
+            );
+            expenseList.push({
+              id: i,
+              expname: exp.expname || "Unknown",
+              paidby: exp.paidby || "Unknown",
+              payerAddress: exp.payerAddress || "Unknown",
+              paddress: exp.paddress || "Unknown",
+              amt: amtEth,
+              shareamount: shareAmountEth,
+              status: statusValue,
+              statusText: statusText,
+              shareAmount:
+                participants.length > 0
+                  ? (amtEth / (participants.length + 1)).toFixed(4)
+                  : "0",
+              participantCount: participants.length,
+              participants: participants,
+              participantNames: participantNames,
+            });
+          } catch (err) {
+            console.error(`Error loading expense ${i}:`, err);
+          }
+        }
+        expenseList.reverse();
+        setExpenses(expenseList);
+        setTotalExpenses(expenseList.length);
+        setTotalAmount(totalAmt);
+        setPendingCount(pending);
+        setBadDebtors(debtors);
+        setDataLoaded(true);
+        calculateSummaryStats(expenseList);
+      } catch (error) {
+        console.error("Failed to load expenses:", error);
+        setDataLoaded(true);
+      } finally {
+        setRefreshing(false);
       }
-      expenseList.reverse();
-      setExpenses(expenseList);
-      setTotalExpenses(expenseList.length);
-      setTotalAmount(totalAmt);
-      setPendingCount(pending);
-      setBadDebtors(debtors);
-      setDataLoaded(true);
-    } catch (error) {
-      console.error("Failed to load expenses:", error);
-      setDataLoaded(true);
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
+    },
+    [calculateSummaryStats],
+  );
 
   // loading the pament state and other
   const loadPaymentRequests = useCallback(
@@ -480,7 +559,7 @@ function App() {
       setError("Failed to connect wallet: " + error.message);
       setIsLoading(false);
     }
-  }, [initEthers, loadPaymentRequests, loadUserNFTs]);
+  }, [initEthers, loadPaymentRequests, loadUserNFTs, loadExpenses]);
 
   // discconnect wallet
   const disconnectWallet = useCallback(() => {
@@ -505,9 +584,10 @@ function App() {
     setNftImageFile(null);
     setSelectedExpenseForNFT("");
     setNftImported(false);
+    setSummaryStats({ pending: 0, paid: 0, received: 0, paymentDue: 0 });
   }, []);
 
-  // importing to mmetamask (NFT)
+  // importing to mmetamask (NFT) - only imports the first NFT once
   const importNFTToMetaMask = useCallback(async () => {
     if (!window.ethereum) {
       alert("Please install MetaMask");
@@ -543,11 +623,16 @@ function App() {
       }
     } catch (error) {
       console.error("Failed to import NFT:", error);
-      alert("Failed to import NFT: " + error.message);
+      if (error.message.includes("already been added")) {
+        alert("ℹ️ This NFT is already in your MetaMask wallet!");
+        setNftImported(true);
+      } else {
+        alert("Failed to import NFT: " + error.message);
+      }
     }
   }, [userNFTs, nftImported]);
 
-  // ✅ UPDATED: minting the nft with Pinata
+  // minting the nft with Pinata
   const mintExpenseNFT = useCallback(async () => {
     if (!nftContract || !isConnected) {
       alert("Please connect wallet first");
@@ -567,22 +652,52 @@ function App() {
         alert("Expense not found");
         return;
       }
+
+      // ✅ FIX: Only the actual owner (payer) can mint the NFT
+      const isPayer =
+        expense.payerAddress?.toLowerCase() === walletAddress?.toLowerCase();
+
+      if (!isPayer) {
+        alert(
+          "❌ Only the actual owner (payer) who added this expense can mint the NFT.",
+        );
+        setMintingNFT(false);
+        setUploading(false);
+        return;
+      }
+
+      // ✅ FIX: NFT contract requires the expense to be PAID (status 1)
+      // The NFT is a receipt, so you can only mint after the expense is paid
+      if (expense.status !== 1) {
+        alert(
+          "⚠️ You can only mint an NFT receipt after the expense is fully PAID. Please mark all participants as paid first.",
+        );
+        setMintingNFT(false);
+        setUploading(false);
+        return;
+      }
+
+      // Always try to upload image, but handle failure gracefully
       let imageUrl = PLACEHOLDER_IMAGE;
       if (nftImageFile) {
         try {
           imageUrl = await uploadToPinata(nftImageFile);
           console.log("✅ Image uploaded to Pinata:", imageUrl);
         } catch (uploadError) {
-          console.error("Image upload failed, using placeholder:", uploadError);
-          imageUrl = PLACEHOLDER_IMAGE;
+          console.error("Image upload failed:", uploadError);
+          imageUrl = "ipfs://QmPlaceholder123456789";
         }
+      } else {
+        imageUrl = "ipfs://QmPlaceholder123456789";
       }
+
       let participantList = "";
       if (expense.participantNames && expense.participantNames.length > 0) {
         participantList = expense.participantNames.join(", ");
       } else {
         participantList = `${expense.participantCount} participants`;
       }
+
       const metadata = {
         name: `Expense: ${expense.expname}`,
         description: `${expense.paidby} paid ${expense.amt.toFixed(4)} ETH for ${expense.expname}. Shared with ${expense.participantCount} participants: ${participantList}.`,
@@ -596,18 +711,32 @@ function App() {
           { trait_type: "Date", value: new Date().toLocaleDateString() },
         ],
       };
-      let metadataUrl = PLACEHOLDER_IMAGE;
+
+      let metadataUrl;
       try {
         metadataUrl = await uploadMetadataToPinata(metadata);
         console.log("✅ Metadata uploaded to Pinata:", metadataUrl);
       } catch (uploadError) {
-        console.error(
-          "Metadata upload failed, using placeholder:",
-          uploadError,
+        console.error("Metadata upload failed:", uploadError);
+        alert(
+          "❌ Failed to upload metadata. Please check your Pinata JWT in .env file and try again.",
         );
-        metadataUrl = PLACEHOLDER_IMAGE;
+        throw new Error("Metadata upload failed");
       }
       setUploading(false);
+
+      if (!metadataUrl || metadataUrl.startsWith("data:image")) {
+        alert("❌ Invalid metadata URL. Please try again with a valid image.");
+        throw new Error("Invalid metadata URL");
+      }
+
+      console.log("📝 Minting NFT with params:", {
+        to: walletAddress,
+        metadataUrl: metadataUrl,
+        expenseId: expense.id,
+        expname: expense.expname,
+      });
+
       const tx = await nftContract.mintExpenseNFT(
         walletAddress,
         metadataUrl,
@@ -622,7 +751,21 @@ function App() {
       await loadUserNFTs(nftContract);
     } catch (error) {
       console.error("Failed to mint NFT:", error);
-      alert("Failed to mint NFT: " + (error.reason || error.message));
+      // Better error message
+      let errorMsg = error.reason || error.message;
+      if (errorMsg.includes("execution reverted")) {
+        if (errorMsg.includes("0x118cdaa7")) {
+          alert(
+            "❌ The NFT contract rejected this transaction. Please make sure:\n1. You are the actual owner (payer) of this expense\n2. The expense is fully PAID (all participants marked as paid)\n3. You haven't minted this expense before",
+          );
+        } else {
+          alert(
+            "❌ The contract rejected this transaction. Please make sure:\n1. You are the actual owner (payer) of this expense\n2. The expense is fully PAID\n3. You haven't minted this expense before",
+          );
+        }
+      } else {
+        alert("Failed to mint NFT: " + errorMsg);
+      }
     } finally {
       setMintingNFT(false);
       setUploading(false);
@@ -639,7 +782,7 @@ function App() {
     uploadMetadataToPinata,
   ]);
 
-  // ===== GET CONTRACT BALANCE =====
+  // for getting the contract baalance
   const getContractBalance = useCallback(async (providerInstance) => {
     if (!providerInstance) return;
     try {
@@ -790,6 +933,60 @@ function App() {
     nftContract,
     loadUserNFTs,
   ]);
+
+  // ✅ NEW: Handle participant paying their share directly
+  const handleParticipantPay = useCallback(
+    async (expenseId, amount) => {
+      if (!signer || !isConnected) {
+        alert("Please connect wallet first");
+        return;
+      }
+
+      // Find the expense to get payer address
+      const expense = expenses.find((e) => e.id === expenseId);
+      if (!expense) {
+        alert("Expense not found");
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const amt = ethers.utils.parseEther(amount.toString());
+
+        // Send payment directly to the payer
+        const tx = await signer.sendTransaction({
+          to: expense.payerAddress,
+          value: amt,
+        });
+        await tx.wait();
+
+        // Mark as paid in the contract
+        const contractTx = await contract.markParticipantPaid(
+          expenseId,
+          walletAddress,
+        );
+        await contractTx.wait();
+
+        await loadExpenses(contract);
+        await loadPaymentRequests(contract);
+        alert("✅ Payment sent successfully!");
+      } catch (error) {
+        console.error("❌ Failed to pay:", error);
+        alert("Failed to pay: " + (error.reason || error.message));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      signer,
+      isConnected,
+      walletAddress,
+      expenses,
+      contract,
+      loadExpenses,
+      loadPaymentRequests,
+    ],
+  );
 
   // ✅ FIX: Mark participant as paid with immediate UI update
   const markParticipantPaid = useCallback(
@@ -1097,7 +1294,6 @@ function App() {
               </span>
             )}
           </div>
-
           {/* NFT Import Button */}
           {isConnected && isCorrectNetwork && (
             <div className="mb-4 p-4 bg-purple-50 rounded-xl border border-purple-200">
@@ -1210,6 +1406,37 @@ function App() {
             </span>
           </div>
         </div>
+        {/* ✅ NEW: Summary Cards - Pending, Paid, Received, Payment Due */}
+        {isConnected && isCorrectNetwork && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
+              <p className="text-yellow-600 text-sm font-medium">⏳ Pending</p>
+              <p className="text-2xl font-bold text-yellow-700">
+                {summaryStats.pending}
+              </p>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+              <p className="text-green-600 text-sm font-medium">✅ Paid</p>
+              <p className="text-2xl font-bold text-green-700">
+                {summaryStats.paid}
+              </p>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+              <p className="text-blue-600 text-sm font-medium">💰 Received</p>
+              <p className="text-2xl font-bold text-blue-700">
+                {summaryStats.received}
+              </p>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center">
+              <p className="text-purple-600 text-sm font-medium">
+                💳 Payment Due
+              </p>
+              <p className="text-2xl font-bold text-purple-700">
+                {summaryStats.paymentDue}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Main Content - Two Columns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1507,6 +1734,59 @@ function App() {
               </div>
             </div>
 
+            {/* Payment Due Section - Shows expenses where user owes money */}
+            {isConnected && isCorrectNetwork && summaryStats.paymentDue > 0 && (
+              <div className="bg-purple-50 border-2 border-purple-300 rounded-2xl p-4">
+                <h3 className="text-purple-700 font-bold flex items-center gap-2 mb-2">
+                  <i className="fas fa-hand-holding-usd"></i> Payment Due (
+                  {summaryStats.paymentDue})
+                </h3>
+                <p className="text-sm text-purple-600 mb-3">
+                  These are expenses where you need to pay your share
+                </p>
+                {expenses
+                  .filter((exp) => {
+                    const isParticipant = exp.participants?.some(
+                      (addr) =>
+                        addr.toLowerCase() === walletAddress?.toLowerCase(),
+                    );
+                    const isPayer =
+                      exp.payerAddress?.toLowerCase() ===
+                      walletAddress?.toLowerCase();
+                    return (
+                      (exp.status === 0 || exp.status === 3) &&
+                      isParticipant &&
+                      !isPayer
+                    );
+                  })
+                  .map((expense) => (
+                    <div
+                      key={expense.id}
+                      className="bg-white p-3 rounded-lg mb-2 flex justify-between items-center"
+                    >
+                      <div>
+                        <p className="font-semibold text-purple-700">
+                          {expense.expname}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Owe: {expense.shareamount.toFixed(4)} ETH to{" "}
+                          {expense.paidby}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleParticipantPay(expense.id, expense.shareamount)
+                        }
+                        disabled={loading}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <i className="fas fa-money-bill-wave"></i> Pay Now
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
+
             {/* Bad Debtors Warning */}
             {badDebtors.length > 0 && (
               <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
@@ -1657,18 +1937,22 @@ function App() {
                                     )}
                                   </div>
                                   <div className="flex gap-2">
-                                    {/* request payment from payers */}
+                                    {/* Pay Now button for participants */}
                                     {isUser &&
                                       (expense.status === 0 ||
                                         expense.status === 3) && (
                                         <button
                                           onClick={() =>
-                                            requestPaymentFromPayer(expense.id)
+                                            handleParticipantPay(
+                                              expense.id,
+                                              expense.shareamount,
+                                            )
                                           }
                                           disabled={loading}
-                                          className="bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded text-xs disabled:opacity-50"
+                                          className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs disabled:opacity-50"
                                         >
-                                          Request Payer
+                                          <i className="fas fa-money-bill-wave mr-1"></i>{" "}
+                                          Pay Now
                                         </button>
                                       )}
                                     {/* ✅ FIX: Mark participant as paid - only for payer and only if not paid */}
@@ -1887,11 +2171,19 @@ function App() {
                 disabled={!isConnected || !isCorrectNetwork}
               >
                 <option value="">Choose an expense...</option>
-                {expenses.map((exp) => (
-                  <option key={exp.id} value={exp.id}>
-                    {exp.expname} - {exp.amt.toFixed(4)} ETH
-                  </option>
-                ))}
+                {expenses
+                  .filter((exp) => {
+                    // Only show expenses where connected wallet is the payer AND expense is fully PAID
+                    const isPayer =
+                      exp.payerAddress?.toLowerCase() ===
+                      walletAddress?.toLowerCase();
+                    return isPayer && exp.status === 1;
+                  })
+                  .map((exp) => (
+                    <option key={exp.id} value={exp.id}>
+                      {exp.expname} - {exp.amt.toFixed(4)} ETH ✅ Paid
+                    </option>
+                  ))}
               </select>
             </div>
             <div>
@@ -2004,4 +2296,4 @@ function App() {
   );
 }
 
-export default App;
+export default ExpenseApp;

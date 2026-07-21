@@ -1,86 +1,63 @@
-// src/nftABI.js
 export const nftABI = [
   {
     type: "constructor",
     inputs: [],
-    stateMutability: "nonpayable"
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
     name: "approve",
     inputs: [
       { name: "to", type: "address", internalType: "address" },
-      { name: "tokenId", type: "uint256", internalType: "uint256" }
+      { name: "tokenId", type: "uint256", internalType: "uint256" },
     ],
     outputs: [],
-    stateMutability: "nonpayable"
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
     name: "balanceOf",
-    inputs: [
-      { name: "owner", type: "address", internalType: "address" }
-    ],
-    outputs: [
-      { name: "", type: "uint256", internalType: "uint256" }
-    ],
-    stateMutability: "view"
+    inputs: [{ name: "owner", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "getApproved",
-    inputs: [
-      { name: "tokenId", type: "uint256", internalType: "uint256" }
-    ],
-    outputs: [
-      { name: "", type: "address", internalType: "address" }
-    ],
-    stateMutability: "view"
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "getExpenseIdForToken",
-    inputs: [
-      { name: "tokenId", type: "uint256", internalType: "uint256" }
-    ],
-    outputs: [
-      { name: "", type: "uint256", internalType: "uint256" }
-    ],
-    stateMutability: "view"
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "getTokenIdForExpense",
-    inputs: [
-      { name: "expenseId", type: "uint256", internalType: "uint256" }
-    ],
-    outputs: [
-      { name: "", type: "uint256", internalType: "uint256" }
-    ],
-    stateMutability: "view"
+    inputs: [{ name: "expenseId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "getUserNFTs",
-    inputs: [
-      { name: "user", type: "address", internalType: "address" }
-    ],
-    outputs: [
-      { name: "", type: "uint256[]", internalType: "uint256[]" }
-    ],
-    stateMutability: "view"
+    inputs: [{ name: "user", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256[]", internalType: "uint256[]" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "isApprovedForAll",
     inputs: [
       { name: "owner", type: "address", internalType: "address" },
-      { name: "operator", type: "address", internalType: "address" }
+      { name: "operator", type: "address", internalType: "address" },
     ],
-    outputs: [
-      { name: "", type: "bool", internalType: "bool" }
-    ],
-    stateMutability: "view"
+    outputs: [{ name: "", type: "bool", internalType: "bool" }],
+    stateMutability: "view",
   },
   {
     type: "function",
@@ -89,59 +66,38 @@ export const nftABI = [
       { name: "to", type: "address", internalType: "address" },
       { name: "tokenURI", type: "string", internalType: "string" },
       { name: "expenseId", type: "uint256", internalType: "uint256" },
-      { name: "expenseName", type: "string", internalType: "string" }
+      { name: "expenseName", type: "string", internalType: "string" },
     ],
-    outputs: [
-      { name: "", type: "uint256", internalType: "uint256" }
-    ],
-    stateMutability: "nonpayable"
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
     name: "name",
     inputs: [],
-    outputs: [
-      { name: "", type: "string", internalType: "string" }
-    ],
-    stateMutability: "view"
+    outputs: [{ name: "", type: "string", internalType: "string" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "owner",
     inputs: [],
-    outputs: [
-      { name: "", type: "address", internalType: "address" }
-    ],
-    stateMutability: "view"
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "ownerOf",
-    inputs: [
-      { name: "tokenId", type: "uint256", internalType: "uint256" }
-    ],
-    outputs: [
-      { name: "", type: "address", internalType: "address" }
-    ],
-    stateMutability: "view"
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "renounceOwnership",
     inputs: [],
     outputs: [],
-    stateMutability: "nonpayable"
-  },
-  {
-    type: "function",
-    name: "safeTransferFrom",
-    inputs: [
-      { name: "from", type: "address", internalType: "address" },
-      { name: "to", type: "address", internalType: "address" },
-      { name: "tokenId", type: "uint256", internalType: "uint256" }
-    ],
-    outputs: [],
-    stateMutability: "nonpayable"
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
@@ -150,51 +106,52 @@ export const nftABI = [
       { name: "from", type: "address", internalType: "address" },
       { name: "to", type: "address", internalType: "address" },
       { name: "tokenId", type: "uint256", internalType: "uint256" },
-      { name: "data", type: "bytes", internalType: "bytes" }
     ],
     outputs: [],
-    stateMutability: "nonpayable"
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "safeTransferFrom",
+    inputs: [
+      { name: "from", type: "address", internalType: "address" },
+      { name: "to", type: "address", internalType: "address" },
+      { name: "tokenId", type: "uint256", internalType: "uint256" },
+      { name: "data", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
     name: "setApprovalForAll",
     inputs: [
       { name: "operator", type: "address", internalType: "address" },
-      { name: "approved", type: "bool", internalType: "bool" }
+      { name: "approved", type: "bool", internalType: "bool" },
     ],
     outputs: [],
-    stateMutability: "nonpayable"
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
     name: "supportsInterface",
-    inputs: [
-      { name: "interfaceId", type: "bytes4", internalType: "bytes4" }
-    ],
-    outputs: [
-      { name: "", type: "bool", internalType: "bool" }
-    ],
-    stateMutability: "view"
+    inputs: [{ name: "interfaceId", type: "bytes4", internalType: "bytes4" }],
+    outputs: [{ name: "", type: "bool", internalType: "bool" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "symbol",
     inputs: [],
-    outputs: [
-      { name: "", type: "string", internalType: "string" }
-    ],
-    stateMutability: "view"
+    outputs: [{ name: "", type: "string", internalType: "string" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "tokenURI",
-    inputs: [
-      { name: "tokenId", type: "uint256", internalType: "uint256" }
-    ],
-    outputs: [
-      { name: "", type: "string", internalType: "string" }
-    ],
-    stateMutability: "view"
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "string", internalType: "string" }],
+    stateMutability: "view",
   },
   {
     type: "function",
@@ -202,19 +159,17 @@ export const nftABI = [
     inputs: [
       { name: "from", type: "address", internalType: "address" },
       { name: "to", type: "address", internalType: "address" },
-      { name: "tokenId", type: "uint256", internalType: "uint256" }
+      { name: "tokenId", type: "uint256", internalType: "uint256" },
     ],
     outputs: [],
-    stateMutability: "nonpayable"
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
     name: "transferOwnership",
-    inputs: [
-      { name: "newOwner", type: "address", internalType: "address" }
-    ],
+    inputs: [{ name: "newOwner", type: "address", internalType: "address" }],
     outputs: [],
-    stateMutability: "nonpayable"
+    stateMutability: "nonpayable",
   },
   {
     type: "event",
@@ -222,9 +177,9 @@ export const nftABI = [
     inputs: [
       { name: "owner", type: "address", indexed: true },
       { name: "approved", type: "address", indexed: true },
-      { name: "tokenId", type: "uint256", indexed: true }
+      { name: "tokenId", type: "uint256", indexed: true },
     ],
-    anonymous: false
+    anonymous: false,
   },
   {
     type: "event",
@@ -232,9 +187,9 @@ export const nftABI = [
     inputs: [
       { name: "owner", type: "address", indexed: true },
       { name: "operator", type: "address", indexed: true },
-      { name: "approved", type: "bool", indexed: false }
+      { name: "approved", type: "bool", indexed: false },
     ],
-    anonymous: false
+    anonymous: false,
   },
   {
     type: "event",
@@ -242,18 +197,18 @@ export const nftABI = [
     inputs: [
       { name: "to", type: "address", indexed: true },
       { name: "tokenId", type: "uint256", indexed: true },
-      { name: "expenseId", type: "uint256", indexed: true }
+      { name: "expenseId", type: "uint256", indexed: true },
     ],
-    anonymous: false
+    anonymous: false,
   },
   {
     type: "event",
     name: "OwnershipTransferred",
     inputs: [
       { name: "previousOwner", type: "address", indexed: true },
-      { name: "newOwner", type: "address", indexed: true }
+      { name: "newOwner", type: "address", indexed: true },
     ],
-    anonymous: false
+    anonymous: false,
   },
   {
     type: "event",
@@ -261,8 +216,8 @@ export const nftABI = [
     inputs: [
       { name: "from", type: "address", indexed: true },
       { name: "to", type: "address", indexed: true },
-      { name: "tokenId", type: "uint256", indexed: true }
+      { name: "tokenId", type: "uint256", indexed: true },
     ],
-    anonymous: false
-  }
+    anonymous: false,
+  },
 ];

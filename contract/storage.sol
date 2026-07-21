@@ -2,7 +2,12 @@
 pragma solidity ^0.8.13;
 
 contract Storage {
-    enum Status { pending, paid, rejected, badDebt }
+    enum Status {
+        pending,
+        paid,
+        rejected,
+        badDebt
+    }
 
     struct Expense {
         string expname;
@@ -76,17 +81,21 @@ contract Storage {
         emit ExpenseAdded(expenses.length - 1, _expname, _amt, uint8(pLen));
     }
 
-    function getExpense(uint256 _id) public view returns (
-        string memory expname,
-        string memory paidby,
-        address payerAddress,
-        string memory paddress,
-        uint256 amt,
-        uint256 shareamount,
-        Status status,
-        address[] memory participants,
-        string[] memory participantNames
-    ) {
+    function getExpense(uint256 _id)
+        public
+        view
+        returns (
+            string memory expname,
+            string memory paidby,
+            address payerAddress,
+            string memory paddress,
+            uint256 amt,
+            uint256 shareamount,
+            Status status,
+            address[] memory participants,
+            string[] memory participantNames
+        )
+    {
         require(_id < expenses.length, "Expense not found");
         Expense storage exp = expenses[_id];
         return (
@@ -162,15 +171,17 @@ contract Storage {
         require(!exp.hasPaid[msg.sender], "Already paid");
         require(exp.status != Status.paid, "Expense already paid");
 
-        paymentRequests.push(PaymentRequest({
-            from: msg.sender,
-            to: exp.payerAddress,
-            amount: exp.shareamount,
-            reason: string(abi.encodePacked("Payment for: ", exp.expname)),
-            isPaid: false,
-            timestamp: block.timestamp,
-            expenseId: _expenseId
-        }));
+        paymentRequests.push(
+            PaymentRequest({
+                from: msg.sender,
+                to: exp.payerAddress,
+                amount: exp.shareamount,
+                reason: string(abi.encodePacked("Payment for: ", exp.expname)),
+                isPaid: false,
+                timestamp: block.timestamp,
+                expenseId: _expenseId
+            })
+        );
 
         uint256 requestId = paymentRequests.length - 1;
         pendingRequests[exp.payerAddress].push(requestId);
@@ -212,15 +223,17 @@ contract Storage {
         require(amount > 0, "Amount must be > 0");
         require(to != msg.sender, "Cannot request from yourself");
 
-        paymentRequests.push(PaymentRequest({
-            from: msg.sender,
-            to: to,
-            amount: amount,
-            reason: reason,
-            isPaid: false,
-            timestamp: block.timestamp,
-            expenseId: type(uint256).max
-        }));
+        paymentRequests.push(
+            PaymentRequest({
+                from: msg.sender,
+                to: to,
+                amount: amount,
+                reason: reason,
+                isPaid: false,
+                timestamp: block.timestamp,
+                expenseId: type(uint256).max
+            })
+        );
 
         uint256 requestId = paymentRequests.length - 1;
         pendingRequests[to].push(requestId);
@@ -260,13 +273,15 @@ contract Storage {
 
         request.isPaid = true;
 
-        (bool sent, ) = request.from.call{value: request.amount}("");
+        (bool sent,) = request.from.call{value: request.amount}("");
         require(sent, "Failed to send ETH");
 
         if (msg.value > request.amount) {
             uint256 refund;
-            unchecked { refund = msg.value - request.amount; }
-            (bool refunded, ) = msg.sender.call{value: refund}("");
+            unchecked {
+                refund = msg.value - request.amount;
+            }
+            (bool refunded,) = msg.sender.call{value: refund}("");
             require(refunded, "Refund failed");
             emit PaymentRefunded(requestId, msg.sender, refund);
         }

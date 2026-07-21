@@ -276,9 +276,12 @@ function App() {
     // ─── GraphQL branch: skip on-chain loop if subgraph is available ───
     if (useGraphQL) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         const res = await fetch(import.meta.env.VITE_SUBGRAPH_URL || "", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             query: `{ expenseAddeds(orderBy: id, orderDirection: desc) {
               id expname amt participantCount
@@ -287,6 +290,7 @@ function App() {
             }}`,
           }),
         });
+        clearTimeout(timeoutId);
         const json = await res.json();
         if (json.data?.expenseAddeds) {
           const list = json.data.expenseAddeds.map((e) => ({
@@ -297,14 +301,14 @@ function App() {
           }));
           setExpenses(list);
           setTotalExpenses(list.length);
+          setTotalAmount(list.reduce((s, e) => s + e.amt, 0));
           setDataLoaded(true);
+          setRefreshing(false);
+          return;
         }
       } catch (err) {
         console.error("GraphQL fetch failed, falling back to RPC:", err);
-      } finally {
-        setRefreshing(false);
       }
-      return;
     }
 
     try {
